@@ -14,8 +14,8 @@ pub enum ContractError {
     #[error("Expired")]
     Expired {},
 
-    #[error("Token info not found")]
-    TokenInfoNotFound {},
+    #[error("Mismatch number of token and token info")]
+    TokenInfoMismatch {},
 
     #[error("Invalid Royalities")]
     InvalidRoyalities {},

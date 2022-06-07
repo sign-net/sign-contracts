@@ -23,3 +23,5 @@ target/
 hash.txt
 contracts.txt
 artifacts/
+
+/schema

@@ -14,10 +14,11 @@ use cw1155_base::ContractError as BaseError;
 use cw2::set_contract_version;
 use cw_utils::{must_pay, Event};
 
-// version info for migration info
+// Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:s1155";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// Token creation fee
 const NATIVE_DENOM: &str = "usign";
 const CREATION_FEE: u128 = 5_000_000;
 
@@ -95,6 +96,8 @@ pub fn execute_mint(
         )));
     };
 
+    // TODO Implement fee sharing and burning
+
     let to_addr = deps.api.addr_validate(&to)?;
 
     if info.sender != MINTER.load(deps.storage)? {
@@ -167,23 +170,28 @@ pub fn execute_batch_mint(
         return Err(ContractError::Unauthorized {});
     }
 
-    let to_addr = deps.api.addr_validate(&to)?;
-
-    let mut rsp = Response::default();
-
     if batch.len() != token_info_batch.len() {
-        return Err(ContractError::TokenInfoNotFound {});
+        return Err(ContractError::TokenInfoMismatch {});
     }
 
     let payment = must_pay(&info, NATIVE_DENOM)?;
-    let total_fees =
-        CREATION_FEE * u128::try_from(batch.len()).expect("Unable to calculate total fee");
-    if payment.u128() < total_fees {
+    let total_tokens = u128::try_from(batch.len()).unwrap();
+    let total_fees = Uint128::from(CREATION_FEE)
+        .checked_mul(Uint128::from(total_tokens))
+        .unwrap();
+
+    if payment.u128() < total_fees.u128() {
         return Err(ContractError::Fee(FeeError::InsufficientFee(
-            CREATION_FEE,
+            total_fees.u128(),
             payment.u128(),
         )));
     };
+
+    // TODO Implement fee sharing and burning
+
+    let to_addr = deps.api.addr_validate(&to)?;
+
+    let mut rsp = Response::default();
 
     for (pos, (token_id, amount)) in batch.iter().enumerate() {
         let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), token_id, *amount)?;
@@ -191,7 +199,7 @@ pub fn execute_batch_mint(
 
         let token_info = token_info_batch
             .get(pos)
-            .ok_or(ContractError::TokenInfoNotFound {})?;
+            .ok_or(ContractError::TokenInfoMismatch {})?;
 
         let TokenInfo {
             document_uri,
@@ -319,7 +327,7 @@ mod tests {
         testing::{mock_dependencies, mock_env, mock_info},
         to_binary, Decimal,
     };
-    use cw1155::BalanceResponse;
+    use cw1155::{BalanceResponse, BatchBalanceResponse};
     use cw_utils::PaymentError;
 
     use super::*;
@@ -357,7 +365,7 @@ mod tests {
         assert_eq!(0, res.messages.len());
 
         let mint_msg = ExecuteMsg::Mint {
-            to: user1.clone(),
+            to: minter.clone(),
             token_id: token1.clone(),
             value: 1u64.into(),
             token_info: token_info1.clone(),
@@ -527,6 +535,178 @@ mod tests {
             to_binary(&BalanceResponse {
                 balance: 10u64.into() // 10 tokens in total
             })
+        );
+    }
+
+    #[test]
+    fn test_batch_mint() {
+        let minter = String::from("minter");
+        let user1 = String::from("user1");
+
+        let token1 = "token1".to_owned();
+        let token_info1: TokenInfo<RoyaltyInfoMsg> = TokenInfo {
+            image_uri: "https://example.com/image1".to_string(),
+            document_uri: "https://example.com/document1".to_string(),
+            token_uri: "https://example.com/token_uri1".to_string(),
+            royalty_info: None,
+        };
+
+        let token2 = "token2".to_owned();
+        let token_info2 = TokenInfo {
+            image_uri: "https://example.com/image1".to_string(),
+            document_uri: "https://example.com/document1".to_string(),
+            token_uri: "https://example.com/token_uri1".to_string(),
+            royalty_info: Some(RoyaltyInfoMsg {
+                payment_address: minter.clone(),
+                share: Decimal::percent(5),
+            }),
+        };
+        let token_batch = vec![
+            (token1.clone(), Uint128::from(1u128)),
+            (token2.clone(), Uint128::from(3u128)),
+        ];
+        let token_info_batch_half = vec![token_info1.clone()];
+        let token_info_batch = vec![token_info1.clone(), token_info2.clone()];
+        let payment = CREATION_FEE * 2;
+
+        let mut deps = mock_dependencies();
+        // instantiate contract for "minter"
+        let msg = InstantiateMsg {
+            minter: minter.clone(),
+        };
+        let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let mint_msg = ExecuteMsg::BatchMint {
+            to: minter.clone(),
+            batch: token_batch.clone(),
+            token_info_batch: token_info_batch_half,
+            msg: None,
+        };
+        // Mismatch number of tokens and token info
+        assert!(matches!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(minter.as_ref(), &coins(CREATION_FEE, NATIVE_DENOM)),
+                mint_msg,
+            ),
+            Err(ContractError::TokenInfoMismatch {})
+        ));
+
+        let mint_msg = ExecuteMsg::BatchMint {
+            to: minter.clone(),
+            batch: token_batch,
+            token_info_batch,
+            msg: None,
+        };
+        // invalid mint, user1 don't mint permission on "minter" contract
+        assert!(matches!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(user1.as_ref(), &coins(CREATION_FEE, NATIVE_DENOM)),
+                mint_msg.clone(),
+            ),
+            Err(ContractError::Unauthorized {})
+        ));
+
+        // invalid mint, minter didn't specify fee
+        assert!(matches!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(minter.as_ref(), &[]),
+                mint_msg.clone(),
+            ),
+            Err(ContractError::Payment(PaymentError::NoFunds {}))
+        ));
+        // invalid mint, minter specify invalid amount
+        assert!(matches!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(minter.as_ref(), &coins(3_000_000, NATIVE_DENOM)),
+                mint_msg.clone(),
+            ),
+            Err(ContractError::Fee(FeeError::InsufficientFee(
+                _payment, 3_000_000,
+            )))
+        ));
+
+        // valid mint 2 different token
+        assert_eq!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(minter.as_ref(), &coins(payment, NATIVE_DENOM)),
+                mint_msg,
+            )
+            .unwrap(),
+            Response::new()
+                .add_attribute("action", "transfer")
+                .add_attribute("token_id", &token1)
+                .add_attribute("amount", 1u64.to_string())
+                .add_attribute("to", &minter)
+                .add_attribute("action", "transfer")
+                .add_attribute("token_id", &token2)
+                .add_attribute("amount", 3u64.to_string())
+                .add_attribute("to", &minter)
+        );
+
+        // query total balance of token1 and token2
+        assert_eq!(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::BatchBalance {
+                    owner: minter,
+                    token_ids: vec![token1.clone(), token2.clone()],
+                }
+            ),
+            to_binary(&BatchBalanceResponse {
+                balances: vec![Uint128::from(1u128), Uint128::from(3u128)]
+            })
+        );
+
+        // Query token1 info
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::TokenInfo { token_id: token1 },
+        )
+        .unwrap();
+        let value: TokenInfoResponse = from_binary(&res).unwrap();
+        assert_eq!(
+            TokenInfoResponse {
+                document_uri: token_info1.document_uri,
+                image_uri: token_info1.image_uri,
+                token_uri: token_info1.token_uri,
+                royalty_info: None,
+            },
+            value
+        );
+
+        // Query token2 info
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::TokenInfo { token_id: token2 },
+        )
+        .unwrap();
+        let value: TokenInfoResponse = from_binary(&res).unwrap();
+        let royalty_info = token_info2.royalty_info.unwrap();
+        assert_eq!(
+            TokenInfoResponse {
+                document_uri: token_info2.document_uri,
+                image_uri: token_info2.image_uri,
+                token_uri: token_info2.token_uri,
+                royalty_info: Some(RoyaltyInfoMsg {
+                    payment_address: royalty_info.payment_address,
+                    share: royalty_info.share
+                }),
+            },
+            value
         );
     }
 }
