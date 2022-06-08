@@ -12,13 +12,6 @@ pub fn check_royalty_payment(
     fee: u128,
     owner: Addr,
 ) -> Result<Vec<SubMsg>, FeeError> {
-    if fee < MIN_ROYALTY_FEE {
-        return Err(FeeError::BelowMinFee(
-            MIN_ROYALTY_FEE,
-            NATIVE_DENOM.to_string(),
-        ));
-    }
-
     let payment = must_pay(info, NATIVE_DENOM)?;
     if payment.u128() < fee {
         return Err(FeeError::InsufficientFee(fee, payment.u128()));
@@ -78,15 +71,7 @@ mod tests {
             sender: owner.clone(),
             funds: coins(MIN_ROYALTY_FEE, NATIVE_DENOM),
         };
-        // 0 fee
-        let result = check_royalty_payment(&info, 0, owner.clone());
-        assert_eq!(
-            result,
-            Err(FeeError::BelowMinFee(
-                MIN_ROYALTY_FEE,
-                NATIVE_DENOM.to_string()
-            ))
-        );
+
         // Insufficient fee
         let result = check_royalty_payment(&info, 2000, owner);
         assert_eq!(

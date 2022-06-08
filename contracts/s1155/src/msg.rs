@@ -26,13 +26,11 @@ pub enum ExecuteMsg {
         to: String,
         token_id: TokenId,
         value: Uint128,
-        fee: Uint128,
         token_info: TokenInfo,
         msg: Option<Binary>,
     },
     BatchMint {
         to: String,
-        total_fee: Uint128,
         batch: Vec<(TokenId, Uint128)>,
         token_info_batch: Vec<TokenInfo>,
         msg: Option<Binary>,

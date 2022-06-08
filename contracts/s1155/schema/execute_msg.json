@@ -104,16 +104,12 @@
         "mint": {
           "type": "object",
           "required": [
-            "fee",
             "to",
             "token_id",
             "token_info",
             "value"
           ],
           "properties": {
-            "fee": {
-              "$ref": "#/definitions/Uint128"
-            },
             "msg": {
               "anyOf": [
                 {
@@ -152,8 +148,7 @@
           "required": [
             "batch",
             "to",
-            "token_info_batch",
-            "total_fee"
+            "token_info_batch"
           ],
           "properties": {
             "batch": {
@@ -190,9 +185,6 @@
               "items": {
                 "$ref": "#/definitions/TokenInfo"
               }
-            },
-            "total_fee": {
-              "$ref": "#/definitions/Uint128"
             }
           }
         }

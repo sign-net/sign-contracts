@@ -10,7 +10,7 @@ use cw1155_base::{msg::InstantiateMsg, ContractError as BaseError};
 use cw2::set_contract_version;
 use s1::{check_royalty_payment, MIN_ROYALTY_FEE};
 use s2::{check_mint_payment, MIN_MINT_FEE};
-use s_std::{error::FeeError, Response, SubMsg, NATIVE_DENOM};
+use s_std::{Response, SubMsg};
 
 // Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:s1155";
@@ -67,17 +67,15 @@ pub fn execute(
             to,
             token_id,
             value,
-            fee,
             token_info,
             msg,
-        } => execute_mint(env, to, token_id, value, fee, token_info, msg),
+        } => execute_mint(env, to, token_id, value, token_info, msg),
         ExecuteMsg::BatchMint {
             to,
-            total_fee,
             batch,
             token_info_batch,
             msg,
-        } => execute_batch_mint(env, to, total_fee, batch, token_info_batch, msg),
+        } => execute_batch_mint(env, to, batch, token_info_batch, msg),
         _ => {
             let result = base_execute(env.deps, env.env, env.info, Cw1155ExecuteMsg::from(msg));
             match result {
@@ -206,14 +204,13 @@ pub fn execute_mint(
     to: String,
     token_id: TokenId,
     amount: Uint128,
-    fee: Uint128,
     token_info: TokenInfo,
     msg: Option<Binary>,
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
     let multisig = deps.api.addr_validate(MULTISIG)?;
-    let mut msgs = check_mint_payment(&info, fee.u128(), multisig)?;
+    let mut msgs = check_mint_payment(&info, MIN_MINT_FEE, multisig)?;
 
     let to_addr = deps.api.addr_validate(&to)?;
 
@@ -264,12 +261,13 @@ pub fn execute_mint(
 pub fn execute_batch_mint(
     env: ExecuteEnv,
     to: String,
-    total_fee: Uint128,
     batch: Vec<(TokenId, Uint128)>,
     token_info_batch: Vec<TokenInfo>,
     msg: Option<Binary>,
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
+
+    let multisig = deps.api.addr_validate(MULTISIG)?;
     if info.sender != MINTER.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
     }
@@ -283,14 +281,6 @@ pub fn execute_batch_mint(
         .checked_mul(Uint128::from(MIN_MINT_FEE))
         .unwrap();
 
-    if total_fee.u128() < min_fee.u128() {
-        return Err(ContractError::Fee(FeeError::BelowMinFee(
-            min_fee.u128(),
-            NATIVE_DENOM.to_string(),
-        )));
-    }
-
-    let multisig = deps.api.addr_validate(MULTISIG)?;
     let mut msgs = check_mint_payment(&info, min_fee.u128(), multisig)?;
 
     let to_addr = deps.api.addr_validate(&to)?;
@@ -440,7 +430,7 @@ mod tests {
         to_binary, BankMsg,
     };
     use cw1155::{BalanceResponse, BatchBalanceResponse};
-    use s_std::create_fund_community_pool_msg;
+    use s_std::{create_fund_community_pool_msg, error::FeeError, NATIVE_DENOM};
 
     use super::*;
 
@@ -468,7 +458,6 @@ mod tests {
         let mint_msg = ExecuteMsg::Mint {
             to: minter.clone(),
             token_id: token1.clone(),
-            fee: Uint128::from(MIN_MINT_FEE),
             value: 2u64.into(),
             token_info: token_info1,
             msg: None,
@@ -672,7 +661,6 @@ mod tests {
         // mint tokens
         let mint_msg = ExecuteMsg::BatchMint {
             to: minter.clone(),
-            total_fee: Uint128::from(MIN_MINT_FEE * 2),
             batch: vec![
                 (token1.clone(), Uint128::from(1u128)),
                 (token2.clone(), Uint128::from(3u128)),
@@ -887,7 +875,6 @@ mod tests {
         let mint_msg = ExecuteMsg::Mint {
             to: minter.clone(),
             token_id: token1.clone(),
-            fee: Uint128::from(MIN_MINT_FEE),
             value: 1u64.into(),
             token_info: token_info1.clone(),
             msg: None,
@@ -907,37 +894,12 @@ mod tests {
         let mint_msg = ExecuteMsg::Mint {
             to: minter.clone(),
             token_id: token1.clone(),
-            fee: Uint128::from(15_000_000u128),
             value: 1u64.into(),
             token_info: token_info1.clone(),
             msg: None,
         };
 
-        // invalid mint, minter specify below min fee
-        let _demon_string = NATIVE_DENOM.to_string();
-        assert!(matches!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(minter.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
-                mint_msg,
-            ),
-            Err(ContractError::Fee(FeeError::BelowMinFee(
-                MIN_MINT_FEE,
-                _demon_string
-            )))
-        ));
-
-        let mint_msg = ExecuteMsg::Mint {
-            to: minter.clone(),
-            token_id: token1.clone(),
-            fee: Uint128::from(MIN_MINT_FEE),
-            value: 1u64.into(),
-            token_info: token_info1.clone(),
-            msg: None,
-        };
-
-        // invalid mint, minter don't have enough funds
+        // invalid mint, minter don't have enough SIGN amount
         assert!(matches!(
             execute(
                 deps.as_mut(),
@@ -1039,7 +1001,6 @@ mod tests {
 
         let mint_msg = ExecuteMsg::BatchMint {
             to: minter.clone(),
-            total_fee: Uint128::from(MIN_MINT_FEE),
             batch: token_batch.clone(),
             token_info_batch: token_info_batch_half,
             msg: None,
@@ -1057,28 +1018,6 @@ mod tests {
 
         let mint_msg = ExecuteMsg::BatchMint {
             to: minter.clone(),
-            total_fee: Uint128::from(30_000_000u128),
-            batch: token_batch.clone(),
-            token_info_batch: token_info_batch.clone(),
-            msg: None,
-        };
-        // invalid mint, minter specify below min fee
-        assert!(matches!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(minter.as_ref(), &coins(payment, NATIVE_DENOM)),
-                mint_msg,
-            ),
-            Err(ContractError::Fee(FeeError::BelowMinFee(
-                _payment,
-                _demon_string
-            )))
-        ));
-
-        let mint_msg = ExecuteMsg::BatchMint {
-            to: minter.clone(),
-            total_fee: Uint128::from(payment),
             batch: token_batch,
             token_info_batch,
             msg: None,
@@ -1093,17 +1032,16 @@ mod tests {
             ),
             Err(ContractError::Unauthorized {})
         ));
-        // invalid mint, minter don't have enough funds
+        // invalid mint, minter don't pay enough SIGN amount
         assert!(matches!(
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(minter.as_ref(), &coins(15_000_000u128, NATIVE_DENOM)),
+                mock_info(minter.as_ref(), &coins(15_000_000, NATIVE_DENOM)),
                 mint_msg.clone(),
             ),
             Err(ContractError::Fee(FeeError::InsufficientFee(
-                _payment,
-                15_000_000u128
+                _payment, 15_000_000
             )))
         ));
 
