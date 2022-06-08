@@ -8,6 +8,10 @@ Contracts run in a WASM VM on the [Sign Layer 1 blockchain](https://github.com/s
 
 Sign's NFT contract s721 is a set of optional extensions on top of [cw721-base](https://github.com/CosmWasm/cw-nfts/tree/main/contracts/cw721-base), and conforms to the [cw721 specification](https://github.com/CosmWasm/cw-nfts/tree/main/packages/cw721).
 
+## S-1155
+
+Sign's NFT contract s1155 is a set of optional extensions on top of [cw1155-base](https://github.com/CosmWasm/cw-plus/tree/main/contracts/cw1155-base), and conforms to the [cw1155 specification](https://github.com/CosmWasm/cw-plus/tree/main/packages/cw1155).
+
 ## Build
 
 ```

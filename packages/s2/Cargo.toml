@@ -1,0 +1,17 @@
+[package]
+edition = "2021"
+name = "s2"
+version = "0.1.0"
+
+authors = ["Lua Zhi Zhan <zhizhan@sign.net>"]
+description = "Definition and types for the S2 interface"
+homepage = "https://sign.net"
+license = "Apache-2.0"
+repository = "https://github.com/sign-net/sign-contracts"
+
+[dependencies]
+cosmwasm-std = {version = "1.0.0"}
+cw-utils = "0.13.2"
+s-std = {path = "../s-std"}
+serde = {version = "1.0.137", default-features = false, features = ["derive"]}
+thiserror = {version = "1.0.31"}
