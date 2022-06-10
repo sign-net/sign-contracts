@@ -8,7 +8,7 @@
 
 ```rs
 const OWNER_PERCENT: u64 = 95;      // 95%
-const MIN_ROYALTY_FEE: u64 = 1000; // 0.001SIGN
+const ROYALTY_FEE: u64 = 1000; // 0.001SIGN
 ```
 
 ## API

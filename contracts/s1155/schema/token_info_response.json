@@ -3,14 +3,11 @@
   "title": "TokenInfoResponse",
   "type": "object",
   "required": [
-    "document_uri",
-    "token_uri"
+    "url"
   ],
   "properties": {
-    "document_uri": {
-      "type": "string"
-    },
-    "token_uri": {
+    "url": {
+      "description": "Should be a url point to a json file",
       "type": "string"
     }
   }

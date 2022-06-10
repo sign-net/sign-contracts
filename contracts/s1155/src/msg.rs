@@ -1,10 +1,11 @@
-use crate::state::TokenInfo;
 use cosmwasm_std::{to_binary, Binary, StdResult, Uint128, WasmMsg};
 use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, TokenId};
 use cw_utils::Expiration;
 use s_std::CosmosMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub type TokenUri = String;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -26,13 +27,12 @@ pub enum ExecuteMsg {
         to: String,
         token_id: TokenId,
         value: Uint128,
-        token_info: TokenInfo,
+        token_uri: TokenUri,
         msg: Option<Binary>,
     },
     BatchMint {
         to: String,
-        batch: Vec<(TokenId, Uint128)>,
-        token_info_batch: Vec<TokenInfo>,
+        batch: Vec<(TokenId, TokenUri, Uint128)>,
         msg: Option<Binary>,
     },
     Burn {
@@ -132,6 +132,7 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
+    MultiSig {},
 }
 
 impl From<QueryMsg> for Cw1155QueryMsg {
@@ -161,6 +162,7 @@ impl From<QueryMsg> for Cw1155QueryMsg {
                 start_after,
                 limit,
             },
+            QueryMsg::TokenInfo { token_id } => Cw1155QueryMsg::TokenInfo { token_id },
             QueryMsg::AllTokens { start_after, limit } => {
                 Cw1155QueryMsg::AllTokens { start_after, limit }
             }
@@ -170,12 +172,6 @@ impl From<QueryMsg> for Cw1155QueryMsg {
             _ => unreachable!("cannot convert {:?} to Cw1155QueryMsg", msg),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokenInfoResponse {
-    pub document_uri: String,
-    pub token_uri: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

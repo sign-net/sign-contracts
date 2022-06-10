@@ -4,7 +4,7 @@ use s_std::{create_fund_community_pool_msg, error::FeeError, SubMsg, NATIVE_DENO
 
 // governance parameters
 const OWNER_PERCENT: u64 = 95;
-pub const MIN_ROYALTY_FEE: u128 = 1000; // 0.001SIGN
+pub const ROYALTY_FEE: u128 = 1000; // 0.001SIGN
 
 /// Royalty payment and distribute fees, return an error if the fee is not enough
 pub fn check_royalty_payment(
@@ -44,7 +44,7 @@ mod tests {
     use cosmwasm_std::{coins, Addr, BankMsg, MessageInfo};
     use s_std::{create_fund_community_pool_msg, NATIVE_DENOM};
 
-    use crate::{check_royalty_payment, royalty_payment, FeeError, SubMsg, MIN_ROYALTY_FEE};
+    use crate::{check_royalty_payment, royalty_payment, FeeError, SubMsg, ROYALTY_FEE};
 
     #[test]
     fn test_check_royalty_payment() {
@@ -53,9 +53,9 @@ mod tests {
         // valid single royalty payment
         let info = MessageInfo {
             sender: owner.clone(),
-            funds: coins(MIN_ROYALTY_FEE, NATIVE_DENOM),
+            funds: coins(ROYALTY_FEE, NATIVE_DENOM),
         };
-        let result = check_royalty_payment(&info, MIN_ROYALTY_FEE, owner.clone());
+        let result = check_royalty_payment(&info, ROYALTY_FEE, owner.clone());
         assert!(result.is_ok());
 
         // valid 4 royalty payments
@@ -69,20 +69,17 @@ mod tests {
         // invalid payments
         let info = MessageInfo {
             sender: owner.clone(),
-            funds: coins(MIN_ROYALTY_FEE, NATIVE_DENOM),
+            funds: coins(ROYALTY_FEE, NATIVE_DENOM),
         };
 
         // Insufficient fee
         let result = check_royalty_payment(&info, 2000, owner);
-        assert_eq!(
-            result,
-            Err(FeeError::InsufficientFee(2000, MIN_ROYALTY_FEE))
-        );
+        assert_eq!(result, Err(FeeError::InsufficientFee(2000, ROYALTY_FEE)));
     }
 
     #[test]
     fn test_royalty_payment() {
-        let res = royalty_payment(MIN_ROYALTY_FEE, Addr::unchecked("owner"));
+        let res = royalty_payment(ROYALTY_FEE, Addr::unchecked("owner"));
         let bank_msg = SubMsg::new(BankMsg::Send {
             to_address: "owner".to_string(),
             amount: coins(950, NATIVE_DENOM.to_string()),

@@ -198,6 +198,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "multi_sig"
+      ],
+      "properties": {
+        "multi_sig": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

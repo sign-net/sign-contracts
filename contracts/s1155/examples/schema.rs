@@ -1,7 +1,10 @@
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use cw1155::{ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse, TokensResponse};
+use cw1155::{
+    ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse, TokenInfoResponse,
+    TokensResponse,
+};
 use cw1155_base::msg::InstantiateMsg;
-use s1155::msg::{ExecuteMsg, QueryMsg, TokenInfoResponse};
+use s1155::msg::{ExecuteMsg, QueryMsg};
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
