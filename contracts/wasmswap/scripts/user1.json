@@ -1,7 +1,7 @@
 {
   "name": "user1",
   "type": "local",
-  "address": "sign1ppzhgdu4987umrmv3hh89ya623vxhfsayhw4t8",
-  "pubkey": "{\"@type\":\"/cosmos.crypto.secp256k1.PubKey\",\"key\":\"AwwqOErFvMaZ6jDnsnxXRhFP+Tg+DaMjrnwQ4y2Di0hJ\"}",
-  "mnemonic": "grit post gather reason meadow cram page robust worth donate usual present tired ginger forest whale eagle foam weasel soldier liar rate crucial tattoo"
+  "address": "sign1pny7nmwnnxmcamvp3hqt4gjrqag9txu0hphqtf",
+  "pubkey": "{\"@type\":\"/cosmos.crypto.secp256k1.PubKey\",\"key\":\"A+AFQWZvsnJ8w0QyhBMo2phgOI9ijFXJ4RHe5U6t1Dzi\"}",
+  "mnemonic": "ability shuffle churn provide lumber woman nuclear merry shiver copy cook about security embrace vocal cluster air alpha remain snow genius fatigue toy elevator"
 }

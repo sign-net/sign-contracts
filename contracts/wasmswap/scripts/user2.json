@@ -1,7 +1,7 @@
 {
   "name": "user2",
   "type": "local",
-  "address": "sign1kdcdnhulvjsg8eucsf28dmdg8daxalavwpzqen",
-  "pubkey": "{\"@type\":\"/cosmos.crypto.secp256k1.PubKey\",\"key\":\"AxCUNJZzsrK7Ts7kUPYKPTrNyK2s1SJrEIv5HTSBkum9\"}",
-  "mnemonic": "horn fetch warfare achieve tortoise heart orphan element about cake time long symptom check core delay mesh forget champion upset scout season panda patch"
+  "address": "sign18prnuz6g7nde8jhc8rf3ve0hxn6j9gt2aearmj",
+  "pubkey": "{\"@type\":\"/cosmos.crypto.secp256k1.PubKey\",\"key\":\"Ay2eQC5NI4cH+q4PDObdmfJRuVaDpRGDpqBgRjcwwiUR\"}",
+  "mnemonic": "reunion exotic father action gadget gossip opera furnace mad slot physical equip art slim surface decline false museum cluster demand wrong hold tuition foot"
 }
