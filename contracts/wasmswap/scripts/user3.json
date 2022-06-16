@@ -1,7 +1,0 @@
-{
-  "name": "user3",
-  "type": "local",
-  "address": "sign1jm8xqxvz4jw5nczxaw4mxzh6t0pgzdd3etkt78",
-  "pubkey": "{\"@type\":\"/cosmos.crypto.secp256k1.PubKey\",\"key\":\"Ax7FvDEDZhR3KeqQxModQpHTg3Jx9Tk+wb2pyMyVEUj7\"}",
-  "mnemonic": "turtle gloom garbage stock history devote exotic math lunch artist image orphan solution carry leaf object pony match bundle pulse heart assault certain shell"
-}

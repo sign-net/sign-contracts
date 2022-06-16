@@ -20,6 +20,12 @@ rustup target list --installed
 rustup target add wasm32-unknown-unknown
 ```
 
+## Docker
+
+Start a dockerized sign chain with `scripts/run.sh` file. The script will pull the docker image from [core](https://github.com/sign-net/core/pkgs/container/core). 
+
+Authentication is required. Find out how to setup [here](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry) 
+
 ## Compiling and running tests
 
 Now that you created your custom contract, make sure you can compile and run it before
