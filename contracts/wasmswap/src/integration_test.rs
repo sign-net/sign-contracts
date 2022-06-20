@@ -115,7 +115,7 @@ fn test_instantiate() {
     assert_ne!(cw20_token.addr(), amm_addr);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.lp_token_address, "Contract #2".to_string())
+    assert_eq!(info.lp_token_address, "contract2".to_string())
 }
 
 #[test]

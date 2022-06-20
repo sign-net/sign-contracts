@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "S721Response",
+  "type": "object",
+  "required": [
+    "contract_addrs"
+  ],
+  "properties": {
+    "contract_addrs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

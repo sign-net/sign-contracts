@@ -4,6 +4,10 @@ Sign smart contracts are written in [CosmWasm](https://cosmwasm.com), a multi-ch
 
 Contracts run in a WASM VM on the [Sign Layer 1 blockchain](https://github.com/sign-net/core).
 
+## Factory
+
+Sign's factory contract to track and manage s721 and s1155 contracts
+
 ## S-721
 
 Sign's NFT contract s721 is a set of optional extensions on top of [cw721-base](https://github.com/CosmWasm/cw-nfts/tree/main/contracts/cw721-base), and conforms to the [cw721 specification](https://github.com/CosmWasm/cw-nfts/tree/main/packages/cw721).
