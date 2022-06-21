@@ -6,13 +6,6 @@ pub struct InstantiateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
-    AddS1155 { from: String },
-    AddS721 { from: String },
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     S1155 { from: String },
     S721 { from: String },

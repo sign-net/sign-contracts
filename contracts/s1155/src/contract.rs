@@ -1,17 +1,19 @@
+#[cfg(not(feature = "library"))]
 use crate::error::ContractError;
 use crate::event::{Event, TransferEvent};
-use crate::msg::{BatchReceiveMsg, ExecuteMsg, QueryMsg, ReceiveMsg, TokenUri};
+use crate::msg::{
+    BatchReceiveMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, TokenUri,
+};
 use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Uint128, WasmMsg};
 use cosmwasm_std::{DepsMut, Env, MessageInfo, StdResult};
 use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, TokenId};
 use cw1155_base::contract::{execute as base_execute, query as base_query};
 use cw1155_base::state::{APPROVES, BALANCES, MINTER, TOKENS};
-use cw1155_base::{msg::InstantiateMsg, ContractError as BaseError};
+use cw1155_base::ContractError as BaseError;
 use cw2::set_contract_version;
 use s1::{check_royalty_payment, ROYALTY_FEE};
 use s2::{check_mint_payment, MIN_MINT_FEE};
-use s_std::{Response, SubMsg};
-use sign_factory::msg::ExecuteMsg as FactoryExecuteMsg;
+use s_std::{FactoryExecuteMsg, Response, SubMsg};
 
 // Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:s1155";
@@ -28,11 +30,10 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    _msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let minter = deps.api.addr_validate(&msg.minter)?;
-    MINTER.save(deps.storage, &minter)?;
+    MINTER.save(deps.storage, &info.sender)?;
 
     let factory_msg = WasmMsg::Execute {
         contract_addr: FACTORY.to_string(),
@@ -312,7 +313,11 @@ pub fn execute_batch_mint(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::MultiSig {} => to_binary(MULTI_SIG),
+        QueryMsg::Config {} => to_binary(&ConfigResponse {
+            minter: MINTER.load(deps.storage)?.to_string(),
+            factory_addr: FACTORY.to_string(),
+            multi_sig: MULTI_SIG.to_string(),
+        }),
         _ => base_query(deps, env, Cw1155QueryMsg::from(msg)),
     }
 }
@@ -403,26 +408,29 @@ mod tests {
     #[test]
     fn test_initialization() {
         let mut deps = mock_dependencies();
-        let minter = String::from("minter");
-        let msg = InstantiateMsg { minter };
-        let operator = mock_info("operator", &[]);
-        let res = instantiate(deps.as_mut(), mock_env(), operator.clone(), msg).unwrap();
+        let msg = InstantiateMsg {};
+        let minter = mock_info("minter", &[]);
+        let res = instantiate(deps.as_mut(), mock_env(), minter.clone(), msg).unwrap();
 
         // Fired sign_factory contract msg
         let factory_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: FACTORY.to_string(),
             msg: to_binary(&FactoryExecuteMsg::AddS1155 {
-                from: operator.sender.to_string(),
+                from: minter.sender.to_string(),
             })
             .unwrap(),
             funds: vec![],
         });
         assert_eq!(vec![factory_msg], res.messages);
 
-        // Check multi signature contract
+        // Check contract configs
         assert_eq!(
-            query(deps.as_ref(), mock_env(), QueryMsg::MultiSig {},),
-            to_binary(MULTI_SIG)
+            query(deps.as_ref(), mock_env(), QueryMsg::Config {},),
+            to_binary(&ConfigResponse {
+                minter: minter.sender.to_string(),
+                factory_addr: FACTORY.to_string(),
+                multi_sig: MULTI_SIG.to_string()
+            })
         );
     }
 
@@ -437,10 +445,14 @@ mod tests {
         let mut deps = mock_dependencies();
 
         // instantiate contract for "minter"
-        let msg = InstantiateMsg {
-            minter: minter.clone(),
-        };
-        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+        let msg = InstantiateMsg {};
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(minter.as_str(), &[]),
+            msg,
+        )
+        .unwrap();
 
         // Mint token
         let mint_msg = ExecuteMsg::Mint {
@@ -634,10 +646,14 @@ mod tests {
         let mut deps = mock_dependencies();
 
         // instantiate contract for "minter"
-        let msg = InstantiateMsg {
-            minter: minter.clone(),
-        };
-        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+        let msg = InstantiateMsg {};
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(minter.as_str(), &[]),
+            msg,
+        )
+        .unwrap();
 
         // mint tokens
         let mint_msg = ExecuteMsg::BatchMint {
@@ -843,10 +859,14 @@ mod tests {
 
         let mut deps = mock_dependencies();
         // instantiate contract for "minter"
-        let msg = InstantiateMsg {
-            minter: minter.clone(),
-        };
-        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+        let msg = InstantiateMsg {};
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(minter.as_str(), &[]),
+            msg,
+        )
+        .unwrap();
 
         let mint_msg = ExecuteMsg::Mint {
             to: minter.clone(),
@@ -979,11 +999,14 @@ mod tests {
         let demon_string = NATIVE_DENOM.to_string();
 
         let mut deps = mock_dependencies();
-        // instantiate contract for "minter"
-        let msg = InstantiateMsg {
-            minter: minter.clone(),
-        };
-        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+        let msg = InstantiateMsg {};
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(minter.as_str(), &[]),
+            msg,
+        )
+        .unwrap();
 
         let mint_msg = ExecuteMsg::BatchMint {
             to: minter.clone(),

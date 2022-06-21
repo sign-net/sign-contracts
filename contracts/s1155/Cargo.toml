@@ -39,7 +39,6 @@ s1 = {path = "../../packages/s1"}
 s2 = {path = "../../packages/s2"}
 schemars = "0.8.1"
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
-sign_factory = {path = "../sign_factory", features = ["library"]}
 thiserror = "1.0.20"
 
 [dev-dependencies]

@@ -1,11 +1,12 @@
 use cosmwasm_std::{entry_point, to_binary, Binary, Deps};
-use cosmwasm_std::{DepsMut, Empty, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{DepsMut, Empty, Env, MessageInfo, StdResult};
 
 use cw2::set_contract_version;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, S1155Response, S721Response};
+use crate::msg::{InstantiateMsg, QueryMsg, S1155Response, S721Response};
 use crate::state::{S1155_STORE, S721_STORE};
 use crate::ContractError;
+use s_std::{FactoryExecuteMsg as ExecuteMsg, Response};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sign_factory";

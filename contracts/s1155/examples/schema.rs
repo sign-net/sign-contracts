@@ -3,8 +3,7 @@ use cw1155::{
     ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse, TokenInfoResponse,
     TokensResponse,
 };
-use cw1155_base::msg::InstantiateMsg;
-use s1155::msg::{ExecuteMsg, QueryMsg};
+use s1155::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
@@ -19,6 +18,7 @@ fn main() {
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(TokenInfoResponse), &out_dir);
 
+    export_schema(&schema_for!(ConfigResponse), &out_dir);
     export_schema(&schema_for!(ApprovedForAllResponse), &out_dir);
     export_schema(&schema_for!(BalanceResponse), &out_dir);
     export_schema(&schema_for!(BatchBalanceResponse), &out_dir);

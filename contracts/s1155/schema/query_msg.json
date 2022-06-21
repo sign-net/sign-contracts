@@ -202,10 +202,10 @@
     {
       "type": "object",
       "required": [
-        "multi_sig"
+        "config"
       ],
       "properties": {
-        "multi_sig": {
+        "config": {
           "type": "object"
         }
       },

@@ -726,7 +726,6 @@ dependencies = [
  "s2",
  "schemars",
  "serde",
- "sign_factory",
  "thiserror",
 ]
 
@@ -869,6 +868,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-storage-plus 0.13.4",
  "cw2 0.13.4",
+ "s-std",
  "schemars",
  "serde",
  "thiserror",

@@ -1,5 +1,6 @@
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use sign_factory::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, S1155Response, S721Response};
+use s_std::FactoryExecuteMsg as ExecuteMsg;
+use sign_factory::msg::{InstantiateMsg, QueryMsg, S1155Response, S721Response};
 use std::env::current_dir;
 use std::fs::create_dir_all;
 

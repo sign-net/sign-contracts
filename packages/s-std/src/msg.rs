@@ -38,3 +38,10 @@ pub fn create_fund_community_pool_msg(amount: Vec<Coin>) -> CosmosMsg<SignMsgWra
     }
     .into()
 }
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum FactoryExecuteMsg {
+    AddS1155 { from: String },
+    AddS721 { from: String },
+}
