@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::event::{Event, TransferEvent};
 use crate::msg::{BatchReceiveMsg, ExecuteMsg, QueryMsg, ReceiveMsg, TokenUri};
-use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Uint128};
+use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Uint128, WasmMsg};
 use cosmwasm_std::{DepsMut, Env, MessageInfo, StdResult};
 use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, TokenId};
 use cw1155_base::contract::{execute as base_execute, query as base_query};
@@ -11,25 +11,38 @@ use cw2::set_contract_version;
 use s1::{check_royalty_payment, ROYALTY_FEE};
 use s2::{check_mint_payment, MIN_MINT_FEE};
 use s_std::{Response, SubMsg};
+use sign_factory::msg::ExecuteMsg as FactoryExecuteMsg;
 
 // Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:s1155";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // TODO use multisig contract
-const MULTISIG: &str = "sign1nfvgxep88xrqza3534e92tlpnvvxctf4laa3kd";
+const MULTI_SIG: &str = "sign1nfvgxep88xrqza3534e92tlpnvvxctf4laa3kd";
+
+// TODO Change this to actual contract
+const FACTORY: &str = "sign14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9sah5mss";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let minter = deps.api.addr_validate(&msg.minter)?;
     MINTER.save(deps.storage, &minter)?;
-    Ok(Response::default())
+
+    let factory_msg = WasmMsg::Execute {
+        contract_addr: FACTORY.to_string(),
+        msg: to_binary(&FactoryExecuteMsg::AddS1155 {
+            contract_addr: env.contract.address.to_string(),
+        })?,
+        funds: vec![],
+    };
+
+    Ok(Response::default().add_message(factory_msg))
 }
 
 /// To mitigate clippy::too_many_arguments warning
@@ -204,7 +217,7 @@ pub fn execute_mint(
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
-    let multisig = deps.api.addr_validate(MULTISIG)?;
+    let multisig = deps.api.addr_validate(MULTI_SIG)?;
     let mut msgs = check_mint_payment(&info, MIN_MINT_FEE, multisig)?;
 
     let to_addr = deps.api.addr_validate(&to)?;
@@ -249,7 +262,7 @@ pub fn execute_batch_mint(
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
-    let multisig = deps.api.addr_validate(MULTISIG)?;
+    let multisig = deps.api.addr_validate(MULTI_SIG)?;
     if info.sender != MINTER.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
     }
@@ -299,7 +312,7 @@ pub fn execute_batch_mint(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::MultiSig {} => to_binary(MULTISIG),
+        QueryMsg::MultiSig {} => to_binary(MULTI_SIG),
         _ => base_query(deps, env, Cw1155QueryMsg::from(msg)),
     }
 }
@@ -388,16 +401,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_multisig() {
+    fn test_initialization() {
         let mut deps = mock_dependencies();
         let minter = String::from("minter");
         let msg = InstantiateMsg { minter };
-        let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
-        assert_eq!(0, res.messages.len());
+        let env = mock_env();
+        let res = instantiate(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
 
+        // Fired sign_factory contract msg
+        let factory_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: FACTORY.to_string(),
+            msg: to_binary(&FactoryExecuteMsg::AddS1155 {
+                contract_addr: env.contract.address.to_string(),
+            })
+            .unwrap(),
+            funds: vec![],
+        });
+        assert_eq!(vec![factory_msg], res.messages);
+
+        // Check multi signature contract
         assert_eq!(
             query(deps.as_ref(), mock_env(), QueryMsg::MultiSig {},),
-            to_binary(MULTISIG)
+            to_binary(MULTI_SIG)
         );
     }
 
@@ -415,8 +440,7 @@ mod tests {
         let msg = InstantiateMsg {
             minter: minter.clone(),
         };
-        let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
-        assert_eq!(0, res.messages.len());
+        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
 
         // Mint token
         let mint_msg = ExecuteMsg::Mint {
@@ -613,8 +637,7 @@ mod tests {
         let msg = InstantiateMsg {
             minter: minter.clone(),
         };
-        let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
-        assert_eq!(0, res.messages.len());
+        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
 
         // mint tokens
         let mint_msg = ExecuteMsg::BatchMint {
@@ -823,8 +846,7 @@ mod tests {
         let msg = InstantiateMsg {
             minter: minter.clone(),
         };
-        let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
-        assert_eq!(0, res.messages.len());
+        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
 
         let mint_msg = ExecuteMsg::Mint {
             to: minter.clone(),
@@ -869,7 +891,7 @@ mod tests {
 
         // mint 1 token
         let bank_msg = SubMsg::new(BankMsg::Send {
-            to_address: MULTISIG.to_string(),
+            to_address: MULTI_SIG.to_string(),
             amount: coins(MIN_MINT_FEE, NATIVE_DENOM.to_string()),
         });
         let mut rsp = Response::new()
@@ -961,8 +983,7 @@ mod tests {
         let msg = InstantiateMsg {
             minter: minter.clone(),
         };
-        let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
-        assert_eq!(0, res.messages.len());
+        instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
 
         let mint_msg = ExecuteMsg::BatchMint {
             to: minter.clone(),
@@ -994,7 +1015,7 @@ mod tests {
 
         // valid mint 2 different token
         let bank_msg = SubMsg::new(BankMsg::Send {
-            to_address: MULTISIG.to_string(),
+            to_address: MULTI_SIG.to_string(),
             amount: coins(payment, demon_string),
         });
         let mut rsp = Response::new()

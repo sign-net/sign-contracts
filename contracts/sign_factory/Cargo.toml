@@ -3,7 +3,7 @@ authors = ["Lua Zhi Zhan <zhizhan@sign.net>"]
 description = "Factory contract for sign blockchain"
 edition = "2021"
 license = "Apache-2.0"
-name = "factory"
+name = "sign_factory"
 version = "0.1.0"
 
 exclude = [

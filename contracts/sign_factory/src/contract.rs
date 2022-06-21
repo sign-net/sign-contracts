@@ -8,7 +8,7 @@ use crate::state::{S1155_STORE, S721_STORE};
 use crate::ContractError;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:factory";
+const CONTRACT_NAME: &str = "crates.io:sign_factory";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
