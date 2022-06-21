@@ -26,8 +26,8 @@ const FACTORY: &str = "sign14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
-    _info: MessageInfo,
+    _env: Env,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -37,7 +37,7 @@ pub fn instantiate(
     let factory_msg = WasmMsg::Execute {
         contract_addr: FACTORY.to_string(),
         msg: to_binary(&FactoryExecuteMsg::AddS1155 {
-            contract_addr: env.contract.address.to_string(),
+            from: info.sender.to_string(),
         })?,
         funds: vec![],
     };
@@ -405,14 +405,14 @@ mod tests {
         let mut deps = mock_dependencies();
         let minter = String::from("minter");
         let msg = InstantiateMsg { minter };
-        let env = mock_env();
-        let res = instantiate(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
+        let operator = mock_info("operator", &[]);
+        let res = instantiate(deps.as_mut(), mock_env(), operator.clone(), msg).unwrap();
 
         // Fired sign_factory contract msg
         let factory_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: FACTORY.to_string(),
             msg: to_binary(&FactoryExecuteMsg::AddS1155 {
-                contract_addr: env.contract.address.to_string(),
+                from: operator.sender.to_string(),
             })
             .unwrap(),
             funds: vec![],
