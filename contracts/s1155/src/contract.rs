@@ -83,7 +83,6 @@ pub fn execute(
             msg,
         } => execute_mint(env, to, token_id, value, token_uri, msg),
         ExecuteMsg::BatchMint { to, batch, msg } => execute_batch_mint(env, to, batch, msg),
-        ExecuteMsg::UpdateRoyalty { royalty } => execute_update_royalty(env, royalty),
         _ => {
             let result = base_execute(env.deps, env.env, env.info, Cw1155ExecuteMsg::from(msg));
             match result {
@@ -105,17 +104,6 @@ pub fn execute(
     }
 }
 
-pub fn execute_update_royalty(env: ExecuteEnv, royalty: String) -> Result<Response, ContractError> {
-    let ExecuteEnv { info, deps, env: _ } = env;
-
-    if info.sender != MINTER.load(deps.storage)? {
-        return Err(ContractError::Unauthorized {});
-    }
-    ROYALTY.save(deps.storage, &deps.api.addr_validate(&royalty)?)?;
-
-    Ok(Response::default().add_attribute("royalty", royalty))
-}
-
 pub fn execute_send_from(
     env: ExecuteEnv,
     from: String,
@@ -132,12 +120,12 @@ pub fn execute_send_from(
 
     let from_addr = deps.api.addr_validate(&from)?;
     let to_addr = deps.api.addr_validate(&to)?;
-
-    let mut msgs = check_royalty_payment(&info, ROYALTY_FEE, MINTER.load(deps.storage)?)?;
+    let royalty = ROYALTY.load(deps.storage)?;
+    let mut msgs = check_royalty_payment(&info, ROYALTY_FEE, royalty.clone())?;
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = Response::default();
+    let mut rsp = Response::default().add_attribute("royalty", royalty.to_string());
 
     let event = execute_transfer_inner(
         &mut deps,
@@ -180,17 +168,16 @@ pub fn execute_batch_send_from(
 
     let from_addr = deps.api.addr_validate(&from)?;
     let to_addr = deps.api.addr_validate(&to)?;
-
+    let royalty = ROYALTY.load(deps.storage)?;
     // ROYALTY_FEE * Number of Tokens
     let fee = Uint128::from(u128::try_from(batch.len()).unwrap())
         .checked_mul(Uint128::from(ROYALTY_FEE))
         .unwrap();
-
-    let mut msgs = check_royalty_payment(&info, fee.u128(), MINTER.load(deps.storage)?)?;
+    let mut msgs = check_royalty_payment(&info, fee.u128(), royalty.clone())?;
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = Response::default();
+    let mut rsp = Response::default().add_attribute("royalty", royalty.to_string());
     for (token_id, amount) in batch.iter() {
         let event = execute_transfer_inner(
             &mut deps,
@@ -228,7 +215,7 @@ pub fn execute_mint(
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
-    let multisig = deps.api.addr_validate(MULTI_SIG)?;
+    let multisig = Addr::unchecked(MULTI_SIG);
     let mut msgs = vec![check_mint_payment(&info, MIN_MINT_FEE, multisig)?];
 
     let to_addr = deps.api.addr_validate(&to)?;
@@ -457,58 +444,6 @@ mod tests {
     }
 
     #[test]
-    fn test_update_royalty() {
-        let minter = String::from("minter");
-        let user1 = String::from("user1");
-
-        let royalty = String::from("royalty");
-
-        let mut deps = mock_dependencies();
-
-        // instantiate contract for "minter"
-        let msg = InstantiateMsg {
-            royalty: minter.clone(),
-        };
-        instantiate(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(minter.as_str(), &[]),
-            msg,
-        )
-        .unwrap();
-
-        let msg = ExecuteMsg::UpdateRoyalty {
-            royalty: royalty.clone(),
-        };
-
-        // Unauthorized, not minter
-        assert!(matches!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(user1.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
-                msg.clone(),
-            ),
-            Err(ContractError::Unauthorized {})
-        ));
-
-        // success
-        let _rsp = Response::new().add_attribute("royalty", royalty.clone());
-        assert!(matches!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(minter.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
-                msg,
-            ),
-            _rsp
-        ));
-        let rsp = &query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
-        let config: ConfigResponse = from_binary(rsp).unwrap();
-        assert_eq!(config.royalty, royalty);
-    }
-
-    #[test]
     fn test_send() {
         let minter = String::from("minter");
         let user1 = String::from("user1");
@@ -586,6 +521,7 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(50u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
+            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
@@ -660,6 +596,7 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(50u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
+            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
@@ -793,6 +730,7 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(100u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
+            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
@@ -874,6 +812,7 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(100u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
+            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())

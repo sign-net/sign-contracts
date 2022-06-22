@@ -56,9 +56,6 @@ pub enum ExecuteMsg {
     RevokeAll {
         operator: String,
     },
-    UpdateRoyalty {
-        royalty: String,
-    },
 }
 
 impl From<ExecuteMsg> for Cw1155ExecuteMsg {
