@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Binary, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{to_binary, Binary, Coin, StdResult, Uint128, WasmMsg};
 use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, TokenId};
 use cw_utils::Expiration;
 use s_std::CosmosMsg;
@@ -182,6 +182,8 @@ pub struct ConfigResponse {
     pub minter: String,
     pub multi_sig: String,
     pub factory_addr: String,
+    pub min_mint_fee: Coin,
+    pub royalty_fee: Coin,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

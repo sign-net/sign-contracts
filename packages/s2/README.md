@@ -20,8 +20,8 @@ pub fn check_mint_payment(
     info: &MessageInfo,
     fee: u128,
     multisig: Addr,
-) -> Result<Vec<SubMsg>, FeeError> 
+) -> Result<SubMsg, FeeError>
 
 /// Mint payment, assuming the right fee is passed in
-pub fn mint_payment(fee: u128, multisig: Addr) -> Vec<SubMsg>
+pub fn mint_payment(fee: u128, multisig: Addr) -> SubMsg
 ```

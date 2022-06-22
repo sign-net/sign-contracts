@@ -17,6 +17,7 @@ pub fn check_royalty_payment(
         return Err(FeeError::InsufficientFee(fee, payment.u128()));
     };
 
+    // fee will be paid only, extra payment will not be spend
     Ok(royalty_payment(fee, owner))
 }
 
@@ -50,31 +51,40 @@ mod tests {
     fn test_check_royalty_payment() {
         let owner = Addr::unchecked("owner");
 
-        // valid single royalty payment
+        // valid royalty payment
         let info = MessageInfo {
             sender: owner.clone(),
             funds: coins(ROYALTY_FEE, NATIVE_DENOM),
         };
-        let result = check_royalty_payment(&info, ROYALTY_FEE, owner.clone());
-        assert!(result.is_ok());
+        let result = check_royalty_payment(&info, ROYALTY_FEE, owner.clone()).unwrap();
+        let bank_msg = SubMsg::new(BankMsg::Send {
+            to_address: "owner".to_string(),
+            amount: coins(950, NATIVE_DENOM.to_string()),
+        });
+        let community_msg = SubMsg::new(create_fund_community_pool_msg(coins(50, NATIVE_DENOM)));
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], bank_msg);
+        assert_eq!(result[1], community_msg);
 
-        // valid 4 royalty payments
+        // valid royalty payments above min fee
         let info = MessageInfo {
             sender: owner.clone(),
-            funds: coins(4000, NATIVE_DENOM),
+            funds: coins(1200, NATIVE_DENOM), // extra 200usign, but only 1000usign is spent
         };
-        let result = check_royalty_payment(&info, 4000, owner.clone());
-        assert!(result.is_ok());
+        let result = check_royalty_payment(&info, ROYALTY_FEE, owner.clone()).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], bank_msg);
+        assert_eq!(result[1], community_msg);
 
         // invalid payments
         let info = MessageInfo {
             sender: owner.clone(),
-            funds: coins(ROYALTY_FEE, NATIVE_DENOM),
+            funds: coins(500, NATIVE_DENOM),
         };
 
         // Insufficient fee
-        let result = check_royalty_payment(&info, 2000, owner);
-        assert_eq!(result, Err(FeeError::InsufficientFee(2000, ROYALTY_FEE)));
+        let result = check_royalty_payment(&info, ROYALTY_FEE, owner);
+        assert_eq!(result, Err(FeeError::InsufficientFee(ROYALTY_FEE, 500)));
     }
 
     #[test]

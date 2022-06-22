@@ -4,6 +4,8 @@ mod query;
 mod route;
 
 pub const NATIVE_DENOM: &str = "usign";
+pub const MULTI_SIG: &str = "sign1nfvgxep88xrqza3534e92tlpnvvxctf4laa3kd";
+pub const FACTORY: &str = "sign14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9sah5mss";
 
 pub use msg::{create_fund_community_pool_msg, SignMsg, SignMsgWrapper};
 

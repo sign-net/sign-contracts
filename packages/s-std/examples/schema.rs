@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use s_std::{SignMsg, SignMsgWrapper};
+use s_std::{FactoryExecuteMsg, SignMsg, SignMsgWrapper};
 fn main() {
     let mut out_dir = current_dir().unwrap();
     out_dir.push("schema");
@@ -12,4 +12,5 @@ fn main() {
 
     export_schema(&schema_for!(SignMsgWrapper), &out_dir);
     export_schema(&schema_for!(SignMsg), &out_dir);
+    export_schema(&schema_for!(FactoryExecuteMsg), &out_dir);
 }

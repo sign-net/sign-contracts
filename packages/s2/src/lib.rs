@@ -10,23 +10,22 @@ pub fn check_mint_payment(
     info: &MessageInfo,
     fee: u128,
     multisig: Addr,
-) -> Result<Vec<SubMsg>, FeeError> {
+) -> Result<SubMsg, FeeError> {
     let payment = must_pay(info, NATIVE_DENOM)?;
     if payment.u128() < fee {
         return Err(FeeError::InsufficientFee(fee, payment.u128()));
     };
 
-    Ok(mint_payment(fee, multisig))
+    // Payment will be spend in full
+    Ok(mint_payment(payment.u128(), multisig))
 }
 
 /// Mint payment, assuming the right fee is passed in
-pub fn mint_payment(fee: u128, multisig: Addr) -> Vec<SubMsg> {
-    let msgs: Vec<SubMsg> = vec![SubMsg::new(BankMsg::Send {
+pub fn mint_payment(fee: u128, multisig: Addr) -> SubMsg {
+    SubMsg::new(BankMsg::Send {
         to_address: multisig.to_string(),
         amount: coins(fee, NATIVE_DENOM),
-    })];
-
-    msgs
+    })
 }
 
 #[cfg(test)]
@@ -45,28 +44,36 @@ mod tests {
             sender: owner.clone(),
             funds: coins(MIN_MINT_FEE, NATIVE_DENOM),
         };
-        let result = check_mint_payment(&info, MIN_MINT_FEE, owner.clone());
-        assert!(result.is_ok());
+        let result = check_mint_payment(&info, MIN_MINT_FEE, owner.clone()).unwrap();
+        let bank_msg = SubMsg::new(BankMsg::Send {
+            to_address: owner.to_string(),
+            amount: coins(MIN_MINT_FEE, NATIVE_DENOM.to_string()),
+        });
+        assert_eq!(result, bank_msg);
 
-        // valid mint payment
+        // valid mint payment above min mint fee
         let info = MessageInfo {
             sender: owner.clone(),
             funds: coins(35_000_000, NATIVE_DENOM),
         };
-        let result = check_mint_payment(&info, 35_000_000, owner.clone());
-        assert!(result.is_ok());
+        let result = check_mint_payment(&info, MIN_MINT_FEE, owner.clone()).unwrap();
+        let bank_msg = SubMsg::new(BankMsg::Send {
+            to_address: owner.to_string(),
+            amount: coins(35_000_000, NATIVE_DENOM.to_string()), // 35sign will be spend
+        });
+        assert_eq!(result, bank_msg);
 
         // invalid payments
         let info = MessageInfo {
             sender: owner.clone(),
-            funds: coins(MIN_MINT_FEE, NATIVE_DENOM),
+            funds: coins(15_000_000, NATIVE_DENOM),
         };
 
         // Insufficient fee
-        let result = check_mint_payment(&info, 30_000_000, owner);
+        let result = check_mint_payment(&info, MIN_MINT_FEE, owner);
         assert_eq!(
             result,
-            Err(FeeError::InsufficientFee(30_000_000, MIN_MINT_FEE))
+            Err(FeeError::InsufficientFee(MIN_MINT_FEE, 15_000_000))
         );
     }
 
@@ -77,7 +84,6 @@ mod tests {
             to_address: "multisig".to_string(),
             amount: coins(MIN_MINT_FEE, NATIVE_DENOM.to_string()),
         });
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], bank_msg);
+        assert_eq!(result, bank_msg);
     }
 }
