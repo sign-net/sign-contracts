@@ -4,6 +4,7 @@ use crate::event::{Event, TransferEvent};
 use crate::msg::{
     BatchReceiveMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, TokenUri,
 };
+use crate::state::ROYALTY;
 use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Coin, Deps, Uint128, WasmMsg};
 use cosmwasm_std::{DepsMut, Env, MessageInfo, StdResult};
 use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, TokenId};
@@ -25,10 +26,11 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     MINTER.save(deps.storage, &info.sender)?;
+    ROYALTY.save(deps.storage, &deps.api.addr_validate(&msg.royalty)?)?;
 
     // Store sender->s1155 contract address to factory contract
     let factory_msg = WasmMsg::Execute {
@@ -81,6 +83,7 @@ pub fn execute(
             msg,
         } => execute_mint(env, to, token_id, value, token_uri, msg),
         ExecuteMsg::BatchMint { to, batch, msg } => execute_batch_mint(env, to, batch, msg),
+        ExecuteMsg::UpdateRoyalty { royalty } => execute_update_royalty(env, royalty),
         _ => {
             let result = base_execute(env.deps, env.env, env.info, Cw1155ExecuteMsg::from(msg));
             match result {
@@ -100,6 +103,17 @@ pub fn execute(
             }
         }
     }
+}
+
+pub fn execute_update_royalty(env: ExecuteEnv, royalty: String) -> Result<Response, ContractError> {
+    let ExecuteEnv { info, deps, env: _ } = env;
+
+    if info.sender != MINTER.load(deps.storage)? {
+        return Err(ContractError::Unauthorized {});
+    }
+    ROYALTY.save(deps.storage, &deps.api.addr_validate(&royalty)?)?;
+
+    Ok(Response::default().add_attribute("royalty", royalty))
 }
 
 pub fn execute_send_from(
@@ -314,7 +328,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&ConfigResponse {
             minter: MINTER.load(deps.storage)?.to_string(),
-            factory_addr: FACTORY.to_string(),
+            royalty: ROYALTY.load(deps.storage)?.to_string(),
+            factory: FACTORY.to_string(),
             multi_sig: MULTI_SIG.to_string(),
             min_mint_fee: Coin::new(MIN_MINT_FEE, NATIVE_DENOM),
             royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
@@ -409,8 +424,11 @@ mod tests {
     #[test]
     fn test_initialization() {
         let mut deps = mock_dependencies();
-        let msg = InstantiateMsg {};
         let minter = mock_info("minter", &[]);
+        let royalty = String::from("royalty");
+        let msg = InstantiateMsg {
+            royalty: royalty.clone(),
+        };
         let res = instantiate(deps.as_mut(), mock_env(), minter.clone(), msg).unwrap();
 
         // Fired sign_factory contract msg
@@ -429,12 +447,65 @@ mod tests {
             query(deps.as_ref(), mock_env(), QueryMsg::Config {},),
             to_binary(&ConfigResponse {
                 minter: minter.sender.to_string(),
-                factory_addr: FACTORY.to_string(),
+                royalty,
+                factory: FACTORY.to_string(),
                 multi_sig: MULTI_SIG.to_string(),
                 min_mint_fee: Coin::new(MIN_MINT_FEE, NATIVE_DENOM),
                 royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
             })
         );
+    }
+
+    #[test]
+    fn test_update_royalty() {
+        let minter = String::from("minter");
+        let user1 = String::from("user1");
+
+        let royalty = String::from("royalty");
+
+        let mut deps = mock_dependencies();
+
+        // instantiate contract for "minter"
+        let msg = InstantiateMsg {
+            royalty: minter.clone(),
+        };
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(minter.as_str(), &[]),
+            msg,
+        )
+        .unwrap();
+
+        let msg = ExecuteMsg::UpdateRoyalty {
+            royalty: royalty.clone(),
+        };
+
+        // Unauthorized, not minter
+        assert!(matches!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(user1.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
+                msg.clone(),
+            ),
+            Err(ContractError::Unauthorized {})
+        ));
+
+        // success
+        let _rsp = Response::new().add_attribute("royalty", royalty.clone());
+        assert!(matches!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(minter.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
+                msg,
+            ),
+            _rsp
+        ));
+        let rsp = &query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
+        let config: ConfigResponse = from_binary(rsp).unwrap();
+        assert_eq!(config.royalty, royalty);
     }
 
     #[test]
@@ -448,7 +519,9 @@ mod tests {
         let mut deps = mock_dependencies();
 
         // instantiate contract for "minter"
-        let msg = InstantiateMsg {};
+        let msg = InstantiateMsg {
+            royalty: minter.clone(),
+        };
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -649,7 +722,9 @@ mod tests {
         let mut deps = mock_dependencies();
 
         // instantiate contract for "minter"
-        let msg = InstantiateMsg {};
+        let msg = InstantiateMsg {
+            royalty: minter.clone(),
+        };
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -862,7 +937,9 @@ mod tests {
 
         let mut deps = mock_dependencies();
         // instantiate contract for "minter"
-        let msg = InstantiateMsg {};
+        let msg = InstantiateMsg {
+            royalty: minter.clone(),
+        };
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -1002,7 +1079,9 @@ mod tests {
         let demon_string = NATIVE_DENOM.to_string();
 
         let mut deps = mock_dependencies();
-        let msg = InstantiateMsg {};
+        let msg = InstantiateMsg {
+            royalty: minter.clone(),
+        };
         instantiate(
             deps.as_mut(),
             mock_env(),

@@ -301,6 +301,26 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_royalty"
+      ],
+      "properties": {
+        "update_royalty": {
+          "type": "object",
+          "required": [
+            "royalty"
+          ],
+          "properties": {
+            "royalty": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

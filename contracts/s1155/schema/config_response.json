@@ -3,14 +3,15 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "factory_addr",
+    "factory",
     "min_mint_fee",
     "minter",
     "multi_sig",
+    "royalty",
     "royalty_fee"
   ],
   "properties": {
-    "factory_addr": {
+    "factory": {
       "type": "string"
     },
     "min_mint_fee": {
@@ -20,6 +21,9 @@
       "type": "string"
     },
     "multi_sig": {
+      "type": "string"
+    },
+    "royalty": {
       "type": "string"
     },
     "royalty_fee": {

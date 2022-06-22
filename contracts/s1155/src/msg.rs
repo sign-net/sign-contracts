@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 pub type TokenUri = String;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsg {}
+pub struct InstantiateMsg {
+    pub royalty: String,
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -53,6 +55,9 @@ pub enum ExecuteMsg {
     },
     RevokeAll {
         operator: String,
+    },
+    UpdateRoyalty {
+        royalty: String,
     },
 }
 
@@ -180,8 +185,9 @@ impl From<QueryMsg> for Cw1155QueryMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ConfigResponse {
     pub minter: String,
+    pub royalty: String,
     pub multi_sig: String,
-    pub factory_addr: String,
+    pub factory: String,
     pub min_mint_fee: Coin,
     pub royalty_fee: Coin,
 }
