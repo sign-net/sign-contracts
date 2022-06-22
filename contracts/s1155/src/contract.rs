@@ -14,15 +14,13 @@ use cw2::set_contract_version;
 use s1::{check_royalty_payment, ROYALTY_FEE};
 use s2::{check_mint_payment, MIN_MINT_FEE};
 use s_std::{FactoryExecuteMsg, Response, SubMsg};
+use url::Url;
 
 // Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:s1155";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// TODO use multisig contract
 const MULTI_SIG: &str = "sign1nfvgxep88xrqza3534e92tlpnvvxctf4laa3kd";
-
-// TODO Change this to actual contract
 const FACTORY: &str = "sign14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9sah5mss";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -227,6 +225,8 @@ pub fn execute_mint(
         return Err(ContractError::Unauthorized {});
     }
 
+    Url::parse(&token_uri)?;
+
     let mut rsp = Response::default();
 
     let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), &token_id, amount)?;
@@ -281,6 +281,8 @@ pub fn execute_batch_mint(
 
     let mut msg_batch: Vec<(TokenId, Uint128)> = vec![];
     for (_, (token_id, token_uri, amount)) in batch.iter().enumerate() {
+        Url::parse(token_uri)?;
+
         let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), token_id, *amount)?;
         event.add_attributes(&mut rsp);
 

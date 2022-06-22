@@ -3,6 +3,7 @@ use cw1155_base::ContractError as Cw1155ContractError;
 use cw_utils::PaymentError;
 use s_std::error::FeeError;
 use thiserror::Error;
+use url::ParseError;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
@@ -23,6 +24,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Payment(#[from] PaymentError),
+
+    #[error("{0}")]
+    Parse(#[from] ParseError),
 }
 
 impl From<ContractError> for Cw1155ContractError {

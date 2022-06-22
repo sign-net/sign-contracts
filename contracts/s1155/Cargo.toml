@@ -40,6 +40,7 @@ s2 = {path = "../../packages/s2"}
 schemars = "0.8.1"
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
 thiserror = "1.0.20"
+url = "2.2.2"
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"
