@@ -13,7 +13,7 @@ use cw1155_base::state::{APPROVES, BALANCES, MINTER, TOKENS};
 use cw1155_base::ContractError as BaseError;
 use cw2::set_contract_version;
 use s1::{check_royalty_payment, ROYALTY_FEE};
-use s2::{check_mint_payment, MIN_MINT_FEE};
+use s2::{check_payment, MIN_FEE};
 use s_std::{FactoryExecuteMsg, Response, SubMsg, FACTORY, MULTI_SIG, NATIVE_DENOM};
 use url::Url;
 
@@ -216,7 +216,7 @@ pub fn execute_mint(
     let ExecuteEnv { mut deps, info, .. } = env;
 
     let multisig = Addr::unchecked(MULTI_SIG);
-    let mut msgs = vec![check_mint_payment(&info, MIN_MINT_FEE, multisig)?];
+    let mut msgs = vec![check_payment(&info, MIN_FEE, multisig)?];
 
     let to_addr = deps.api.addr_validate(&to)?;
 
@@ -267,11 +267,11 @@ pub fn execute_batch_mint(
         return Err(ContractError::Unauthorized {});
     }
 
-    // MIN_MINT_FEE * Number of Tokens
+    // MIN_FEE * Number of Tokens
     let min_fee = Uint128::from(u128::try_from(batch.len()).unwrap())
-        .checked_mul(Uint128::from(MIN_MINT_FEE))
+        .checked_mul(Uint128::from(MIN_FEE))
         .unwrap();
-    let mut msgs = vec![check_mint_payment(&info, min_fee.u128(), multisig)?];
+    let mut msgs = vec![check_payment(&info, min_fee.u128(), multisig)?];
 
     let to_addr = deps.api.addr_validate(&to)?;
 
@@ -318,7 +318,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             royalty: ROYALTY.load(deps.storage)?.to_string(),
             factory: FACTORY.to_string(),
             multi_sig: MULTI_SIG.to_string(),
-            min_mint_fee: Coin::new(MIN_MINT_FEE, NATIVE_DENOM),
+            min_mint_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
             royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
         }),
         _ => base_query(deps, env, Cw1155QueryMsg::from(msg)),
@@ -437,7 +437,7 @@ mod tests {
                 royalty,
                 factory: FACTORY.to_string(),
                 multi_sig: MULTI_SIG.to_string(),
-                min_mint_fee: Coin::new(MIN_MINT_FEE, NATIVE_DENOM),
+                min_mint_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
                 royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
             })
         );
@@ -476,7 +476,7 @@ mod tests {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(minter.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
+            mock_info(minter.as_ref(), &coins(MIN_FEE, NATIVE_DENOM)),
             mint_msg,
         )
         .unwrap();
@@ -682,7 +682,7 @@ mod tests {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(minter.as_ref(), &coins(MIN_MINT_FEE * 2, NATIVE_DENOM)),
+            mock_info(minter.as_ref(), &coins(MIN_FEE * 2, NATIVE_DENOM)),
             mint_msg,
         )
         .unwrap();
@@ -900,7 +900,7 @@ mod tests {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(user1.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
+                mock_info(user1.as_ref(), &coins(MIN_FEE, NATIVE_DENOM)),
                 mint_msg,
             ),
             Err(ContractError::Unauthorized {})
@@ -923,15 +923,14 @@ mod tests {
                 mint_msg.clone(),
             ),
             Err(ContractError::Fee(FeeError::InsufficientFee(
-                MIN_MINT_FEE,
-                15_000_000
+                MIN_FEE, 15_000_000
             )))
         ));
 
         // mint 1 token
         let bank_msg = SubMsg::new(BankMsg::Send {
             to_address: MULTI_SIG.to_string(),
-            amount: coins(MIN_MINT_FEE, NATIVE_DENOM.to_string()),
+            amount: coins(MIN_FEE, NATIVE_DENOM.to_string()),
         });
         let mut rsp = Response::new()
             .add_attribute("action", "transfer")
@@ -943,7 +942,7 @@ mod tests {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(minter.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
+                mock_info(minter.as_ref(), &coins(MIN_FEE, NATIVE_DENOM)),
                 mint_msg.clone(),
             )
             .unwrap(),
@@ -980,7 +979,7 @@ mod tests {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(minter.as_ref(), &coins(MIN_MINT_FEE, NATIVE_DENOM)),
+            mock_info(minter.as_ref(), &coins(MIN_FEE, NATIVE_DENOM)),
             mint_msg,
         )
         .unwrap();
@@ -1014,7 +1013,7 @@ mod tests {
             (token1.clone(), token_uri1.clone(), Uint128::from(1u128)),
             (token2.clone(), token_uri2.clone(), Uint128::from(3u128)),
         ];
-        let payment = MIN_MINT_FEE * 2; // Min amount to be paid
+        let payment = MIN_FEE * 2; // Min amount to be paid
         let demon_string = NATIVE_DENOM.to_string();
 
         let mut deps = mock_dependencies();
