@@ -1,6 +1,8 @@
-use crate::{state::CollectionInfo, ContractError};
-use cosmwasm_std::{Decimal, Empty};
-use cw721_base::msg::QueryMsg as Cw721QueryMsg;
+use crate::state::CollectionInfo;
+use cosmwasm_std::{Binary, Coin, Empty};
+use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMsg, QueryMsg as Cw721QueryMsg};
+use cw721_base::MintMsg;
+use cw_utils::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,26 +11,89 @@ pub struct InstantiateMsg {
     pub name: String,
     pub symbol: String,
     pub minter: String,
-    pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
+    pub collection_info: CollectionInfo,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct RoyaltyInfoResponse {
-    pub payment_address: String,
-    pub share: Decimal,
+// pub type ExecuteMsg = cw721_base::ExecuteMsg<Empty>;
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecuteMsg {
+    TransferNft {
+        recipient: String,
+        token_id: String,
+    },
+    SendNft {
+        contract: String,
+        token_id: String,
+        msg: Binary,
+    },
+    Approve {
+        spender: String,
+        token_id: String,
+        expires: Option<Expiration>,
+    },
+    Revoke {
+        spender: String,
+        token_id: String,
+    },
+    ApproveAll {
+        operator: String,
+        expires: Option<Expiration>,
+    },
+    RevokeAll {
+        operator: String,
+    },
+
+    /// Mint a new NFT, can only be called by the contract minter
+    Mint(MintMsg<Empty>),
+
+    /// Burn an NFT the sender has access to
+    Burn {
+        token_id: String,
+    },
 }
 
-impl RoyaltyInfoResponse {
-    pub fn share_validate(&self) -> Result<Decimal, ContractError> {
-        if self.share > Decimal::one() {
-            return Err(ContractError::InvalidRoyalities {});
+impl From<ExecuteMsg> for Cw721ExecuteMsg<Empty> {
+    fn from(msg: ExecuteMsg) -> Cw721ExecuteMsg<Empty> {
+        match msg {
+            ExecuteMsg::TransferNft {
+                recipient,
+                token_id,
+            } => Cw721ExecuteMsg::TransferNft {
+                recipient,
+                token_id,
+            },
+            ExecuteMsg::SendNft {
+                contract,
+                token_id,
+                msg,
+            } => Cw721ExecuteMsg::SendNft {
+                contract,
+                token_id,
+                msg,
+            },
+            ExecuteMsg::Approve {
+                spender,
+                token_id,
+                expires,
+            } => Cw721ExecuteMsg::Approve {
+                spender,
+                token_id,
+                expires,
+            },
+            ExecuteMsg::Revoke { spender, token_id } => {
+                Cw721ExecuteMsg::Revoke { spender, token_id }
+            }
+            ExecuteMsg::ApproveAll { operator, expires } => {
+                Cw721ExecuteMsg::ApproveAll { operator, expires }
+            }
+            ExecuteMsg::RevokeAll { operator } => Cw721ExecuteMsg::RevokeAll { operator },
+            ExecuteMsg::Mint(msg) => Cw721ExecuteMsg::Mint(msg),
+            ExecuteMsg::Burn { token_id } => Self::Burn { token_id },
         }
-
-        Ok(self.share)
     }
 }
-
-pub type ExecuteMsg = cw721_base::ExecuteMsg<Empty>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -145,5 +210,10 @@ pub struct CollectionInfoResponse {
     pub description: String,
     pub image: String,
     pub external_link: Option<String>,
-    pub royalty_info: Option<RoyaltyInfoResponse>,
+    pub royalty_address: String,
+    pub factory_address: String,
+    pub multisig: String,
+    pub min_fee: Coin,
+    pub royalty_fee: Coin,
+    pub royalty_share: u64,
 }

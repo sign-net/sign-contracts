@@ -3,12 +3,54 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "count"
+    "collection_info",
+    "minter",
+    "name",
+    "symbol"
   ],
   "properties": {
-    "count": {
-      "type": "integer",
-      "format": "int32"
+    "collection_info": {
+      "$ref": "#/definitions/CollectionInfo"
+    },
+    "minter": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "symbol": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "CollectionInfo": {
+      "type": "object",
+      "required": [
+        "creator",
+        "description",
+        "image",
+        "royalty_address"
+      ],
+      "properties": {
+        "creator": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "external_link": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "type": "string"
+        },
+        "royalty_address": {
+          "type": "string"
+        }
+      }
     }
   }
 }

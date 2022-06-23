@@ -1,6 +1,7 @@
 use cosmwasm_std::StdError;
 use cw721_base::ContractError as Cw721ContractError;
 use cw_utils::PaymentError;
+use s_std::error::FeeError;
 use thiserror::Error;
 use url::ParseError;
 
@@ -38,15 +39,6 @@ pub enum ContractError {
 
     #[error("{0}")]
     Parse(#[from] ParseError),
-}
-
-#[derive(Error, Debug, PartialEq)]
-pub enum FeeError {
-    #[error("Insufficient fee: expected {0}, got {1}")]
-    InsufficientFee(u128, u128),
-
-    #[error("{0}")]
-    Payment(#[from] PaymentError),
 }
 
 impl From<ContractError> for Cw721ContractError {

@@ -3,7 +3,7 @@ use cw_utils::must_pay;
 use s_std::{create_fund_community_pool_msg, error::FeeError, SubMsg, NATIVE_DENOM};
 
 // governance parameters
-const OWNER_PERCENT: u64 = 95;
+pub const OWNER_PERCENT: u64 = 95;
 pub const ROYALTY_FEE: u128 = 1000; // 0.001SIGN
 
 /// Royalty payment and distribute fees, return an error if the fee is not enough
