@@ -5,7 +5,7 @@ use s_std::{error::FeeError, SubMsg, NATIVE_DENOM};
 // governance parameters
 pub const MIN_FEE: u128 = 25_000_000; // 25SIGN
 
-/// Mint payment, return an error if the fee is not enough
+/// Payment, return an error if the fee is not enough
 pub fn check_payment(info: &MessageInfo, fee: u128, multisig: Addr) -> Result<SubMsg, FeeError> {
     let payment = must_pay(info, NATIVE_DENOM)?;
     if payment.u128() < fee {
@@ -16,7 +16,7 @@ pub fn check_payment(info: &MessageInfo, fee: u128, multisig: Addr) -> Result<Su
     Ok(_payment(payment.u128(), multisig))
 }
 
-/// Mint payment, assuming the right fee is passed in
+/// Payment, assuming the right fee is passed in
 fn _payment(fee: u128, multisig: Addr) -> SubMsg {
     SubMsg::new(BankMsg::Send {
         to_address: multisig.to_string(),
@@ -35,7 +35,7 @@ mod tests {
     fn test_check_mint_payment() {
         let owner = Addr::unchecked("multisig");
 
-        // valid min mint payment
+        // valid min payment
         let info = MessageInfo {
             sender: owner.clone(),
             funds: coins(MIN_FEE, NATIVE_DENOM),
@@ -47,7 +47,7 @@ mod tests {
         });
         assert_eq!(result, bank_msg);
 
-        // valid mint payment above min mint fee
+        // valid payment above min mint fee
         let info = MessageInfo {
             sender: owner.clone(),
             funds: coins(35_000_000, NATIVE_DENOM),
@@ -71,7 +71,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mint_payment() {
+    fn test_payment() {
         let result = _payment(MIN_FEE, Addr::unchecked("multisig"));
         let bank_msg = SubMsg::new(BankMsg::Send {
             to_address: "multisig".to_string(),

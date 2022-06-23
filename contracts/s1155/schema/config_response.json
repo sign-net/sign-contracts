@@ -3,31 +3,37 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "factory",
-    "min_mint_fee",
+    "factory_address",
+    "min_fee",
     "minter",
-    "multi_sig",
-    "royalty",
-    "royalty_fee"
+    "multisig",
+    "royalty_address",
+    "royalty_fee",
+    "royalty_share"
   ],
   "properties": {
-    "factory": {
+    "factory_address": {
       "type": "string"
     },
-    "min_mint_fee": {
+    "min_fee": {
       "$ref": "#/definitions/Coin"
     },
     "minter": {
       "type": "string"
     },
-    "multi_sig": {
+    "multisig": {
       "type": "string"
     },
-    "royalty": {
+    "royalty_address": {
       "type": "string"
     },
     "royalty_fee": {
       "$ref": "#/definitions/Coin"
+    },
+    "royalty_share": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     }
   },
   "definitions": {

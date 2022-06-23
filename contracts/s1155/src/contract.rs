@@ -5,14 +5,14 @@ use crate::msg::{
     BatchReceiveMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, TokenUri,
 };
 use crate::state::ROYALTY;
-use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Coin, Deps, Uint128, WasmMsg};
+use cosmwasm_std::{attr, entry_point, to_binary, Addr, Binary, Coin, Deps, Uint128, WasmMsg};
 use cosmwasm_std::{DepsMut, Env, MessageInfo, StdResult};
 use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, TokenId};
 use cw1155_base::contract::{execute as base_execute, query as base_query};
 use cw1155_base::state::{APPROVES, BALANCES, MINTER, TOKENS};
 use cw1155_base::ContractError as BaseError;
 use cw2::set_contract_version;
-use s1::{check_royalty_payment, ROYALTY_FEE};
+use s1::{check_royalty_payment, OWNER_PERCENT, ROYALTY_FEE};
 use s2::{check_payment, MIN_FEE};
 use s_std::{FactoryExecuteMsg, Response, SubMsg, FACTORY, MULTI_SIG, NATIVE_DENOM};
 use url::Url;
@@ -30,7 +30,7 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     MINTER.save(deps.storage, &info.sender)?;
-    ROYALTY.save(deps.storage, &deps.api.addr_validate(&msg.royalty)?)?;
+    ROYALTY.save(deps.storage, &deps.api.addr_validate(&msg.royalty_address)?)?;
 
     // Store sender->s1155 contract address to factory contract
     let factory_msg = WasmMsg::Execute {
@@ -41,7 +41,11 @@ pub fn instantiate(
         funds: vec![],
     };
 
-    Ok(Response::default().add_message(factory_msg))
+    Ok(Response::default()
+        .add_attribute("action", "instantiate")
+        .add_attribute("contract_name", CONTRACT_NAME)
+        .add_attribute("contract_version", CONTRACT_VERSION)
+        .add_message(factory_msg))
 }
 
 /// To mitigate clippy::too_many_arguments warning
@@ -125,7 +129,7 @@ pub fn execute_send_from(
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = Response::default().add_attribute("royalty", royalty.to_string());
+    let mut rsp = Response::default();
 
     let event = execute_transfer_inner(
         &mut deps,
@@ -134,7 +138,15 @@ pub fn execute_send_from(
         &token_id,
         amount,
     )?;
-    event.add_attributes(&mut rsp);
+    event.add_attributes(&mut rsp, "transfer");
+    rsp.attributes.push(attr(
+        "royalty_fee",
+        Coin::new(ROYALTY_FEE, NATIVE_DENOM).to_string(),
+    ));
+    rsp.attributes
+        .push(attr("royalty_address", royalty.to_string()));
+    rsp.attributes
+        .push(attr("royalty_share", OWNER_PERCENT.to_string()));
 
     if let Some(msg) = msg {
         msgs.push(SubMsg::new(
@@ -177,7 +189,7 @@ pub fn execute_batch_send_from(
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = Response::default().add_attribute("royalty", royalty.to_string());
+    let mut rsp = Response::default();
     for (token_id, amount) in batch.iter() {
         let event = execute_transfer_inner(
             &mut deps,
@@ -186,8 +198,16 @@ pub fn execute_batch_send_from(
             token_id,
             *amount,
         )?;
-        event.add_attributes(&mut rsp);
+        event.add_attributes(&mut rsp, "transfer");
     }
+    rsp.attributes.push(attr(
+        "royalty_fee",
+        Coin::new(fee.u128(), NATIVE_DENOM).to_string(),
+    ));
+    rsp.attributes
+        .push(attr("royalty_address", royalty.to_string()));
+    rsp.attributes
+        .push(attr("royalty_share", OWNER_PERCENT.to_string()));
 
     if let Some(msg) = msg {
         msgs.push(SubMsg::new(
@@ -229,7 +249,10 @@ pub fn execute_mint(
     let mut rsp = Response::default();
 
     let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), &token_id, amount)?;
-    event.add_attributes(&mut rsp);
+    event.add_attributes(&mut rsp, "mint");
+    rsp.attributes
+        .push(attr("mint_fee", info.funds[0].to_string()));
+    rsp.attributes.push(attr("payment_address", MULTI_SIG));
 
     if let Some(msg) = msg {
         msgs.push(SubMsg::new(
@@ -282,7 +305,7 @@ pub fn execute_batch_mint(
         Url::parse(token_uri)?;
 
         let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), token_id, *amount)?;
-        event.add_attributes(&mut rsp);
+        event.add_attributes(&mut rsp, "mint");
 
         // insert if not exist
         if !TOKENS.has(deps.storage, token_id) {
@@ -291,6 +314,9 @@ pub fn execute_batch_mint(
         }
         msg_batch.push((token_id.clone(), *amount));
     }
+    rsp.attributes
+        .push(attr("mint_fee", info.funds[0].to_string()));
+    rsp.attributes.push(attr("payment_address", MULTI_SIG));
 
     if let Some(msg) = msg {
         msgs.push(SubMsg::new(
@@ -315,11 +341,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&ConfigResponse {
             minter: MINTER.load(deps.storage)?.to_string(),
-            royalty: ROYALTY.load(deps.storage)?.to_string(),
-            factory: FACTORY.to_string(),
-            multi_sig: MULTI_SIG.to_string(),
-            min_mint_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
+            royalty_address: ROYALTY.load(deps.storage)?.to_string(),
+            factory_address: FACTORY.to_string(),
+            multisig: MULTI_SIG.to_string(),
+            min_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
             royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
+            royalty_share: OWNER_PERCENT,
         }),
         _ => base_query(deps, env, Cw1155QueryMsg::from(msg)),
     }
@@ -413,32 +440,39 @@ mod tests {
         let mut deps = mock_dependencies();
         let minter = mock_info("minter", &[]);
         let royalty = String::from("royalty");
-        let msg = InstantiateMsg {
-            royalty: royalty.clone(),
-        };
-        let res = instantiate(deps.as_mut(), mock_env(), minter.clone(), msg).unwrap();
 
-        // Fired sign_factory contract msg
-        let factory_msg = SubMsg::new(WasmMsg::Execute {
+        let msg = InstantiateMsg {
+            royalty_address: royalty.clone(),
+        };
+        let factory_msg = WasmMsg::Execute {
             contract_addr: FACTORY.to_string(),
             msg: to_binary(&FactoryExecuteMsg::AddS1155 {
                 from: minter.sender.to_string(),
             })
             .unwrap(),
             funds: vec![],
-        });
-        assert_eq!(vec![factory_msg], res.messages);
+        };
+        let rsp = Response::new()
+            .add_attribute("action", "instantiate")
+            .add_attribute("contract_name", CONTRACT_NAME)
+            .add_attribute("contract_version", CONTRACT_VERSION)
+            .add_message(factory_msg);
+        assert_eq!(
+            instantiate(deps.as_mut(), mock_env(), minter.clone(), msg).unwrap(),
+            rsp
+        );
 
         // Check contract configs
         assert_eq!(
             query(deps.as_ref(), mock_env(), QueryMsg::Config {},),
             to_binary(&ConfigResponse {
                 minter: minter.sender.to_string(),
-                royalty,
-                factory: FACTORY.to_string(),
-                multi_sig: MULTI_SIG.to_string(),
-                min_mint_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
+                royalty_address: royalty,
+                factory_address: FACTORY.to_string(),
+                multisig: MULTI_SIG.to_string(),
+                min_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
                 royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
+                royalty_share: OWNER_PERCENT,
             })
         );
     }
@@ -455,7 +489,7 @@ mod tests {
 
         // instantiate contract for "minter"
         let msg = InstantiateMsg {
-            royalty: minter.clone(),
+            royalty_address: minter.clone(),
         };
         instantiate(
             deps.as_mut(),
@@ -514,6 +548,8 @@ mod tests {
         ));
 
         // Valid transfer
+        let info = mock_info(minter.as_ref(), &coins(ROYALTY_FEE, NATIVE_DENOM));
+
         let bank_msg = SubMsg::new(BankMsg::Send {
             to_address: minter.to_string(),
             amount: coins(950u128, NATIVE_DENOM.to_string()),
@@ -521,21 +557,17 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(50u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
-            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
             .add_attribute("from", &minter)
-            .add_attribute("to", &user1);
+            .add_attribute("to", &user1)
+            .add_attribute("royalty_fee", info.funds[0].to_string())
+            .add_attribute("royalty_address", &minter)
+            .add_attribute("royalty_share", OWNER_PERCENT.to_string());
         rsp.messages = vec![bank_msg, community_msg];
         assert_eq!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(minter.as_ref(), &coins(ROYALTY_FEE, NATIVE_DENOM)),
-                transfer_msg,
-            )
-            .unwrap(),
+            execute(deps.as_mut(), mock_env(), info, transfer_msg,).unwrap(),
             rsp
         );
 
@@ -582,6 +614,7 @@ mod tests {
         .unwrap();
 
         // Valid transfer from minter to user2 using user2 account
+        let info = mock_info(user2.as_ref(), &coins(ROYALTY_FEE, NATIVE_DENOM));
         let transfer_msg = ExecuteMsg::SendFrom {
             from: minter.clone(),
             to: user2.clone(),
@@ -596,21 +629,17 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(50u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
-            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
             .add_attribute("from", &minter)
-            .add_attribute("to", &user2);
+            .add_attribute("to", &user2)
+            .add_attribute("royalty_fee", info.funds[0].to_string())
+            .add_attribute("royalty_address", &minter)
+            .add_attribute("royalty_share", OWNER_PERCENT.to_string());
         rsp.messages = vec![bank_msg, community_msg];
         assert_eq!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(user2.as_ref(), &coins(ROYALTY_FEE, NATIVE_DENOM)),
-                transfer_msg,
-            )
-            .unwrap(),
+            execute(deps.as_mut(), mock_env(), info, transfer_msg,).unwrap(),
             rsp
         );
 
@@ -660,7 +689,7 @@ mod tests {
 
         // instantiate contract for "minter"
         let msg = InstantiateMsg {
-            royalty: minter.clone(),
+            royalty_address: minter.clone(),
         };
         instantiate(
             deps.as_mut(),
@@ -730,7 +759,6 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(100u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
-            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
@@ -740,7 +768,10 @@ mod tests {
             .add_attribute("token_id", &token2)
             .add_attribute("amount", 2u64.to_string())
             .add_attribute("from", &minter)
-            .add_attribute("to", &user1);
+            .add_attribute("to", &user1)
+            .add_attribute("royalty_fee", Coin::new(payment, NATIVE_DENOM).to_string())
+            .add_attribute("royalty_address", &minter)
+            .add_attribute("royalty_share", OWNER_PERCENT.to_string());
         rsp.messages = vec![bank_msg, community_msg];
         assert_eq!(
             execute(
@@ -812,7 +843,6 @@ mod tests {
         let community_msg =
             SubMsg::new(create_fund_community_pool_msg(coins(100u128, NATIVE_DENOM)));
         let mut rsp = Response::new()
-            .add_attribute("royalty", &minter)
             .add_attribute("action", "transfer")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
@@ -822,7 +852,10 @@ mod tests {
             .add_attribute("token_id", &token2)
             .add_attribute("amount", 1u64.to_string())
             .add_attribute("from", &user1)
-            .add_attribute("to", &minter);
+            .add_attribute("to", &minter)
+            .add_attribute("royalty_fee", Coin::new(payment, NATIVE_DENOM).to_string())
+            .add_attribute("royalty_address", &minter)
+            .add_attribute("royalty_share", OWNER_PERCENT.to_string());
         rsp.messages = vec![bank_msg, community_msg];
         assert_eq!(
             execute(
@@ -877,7 +910,7 @@ mod tests {
         let mut deps = mock_dependencies();
         // instantiate contract for "minter"
         let msg = InstantiateMsg {
-            royalty: minter.clone(),
+            royalty_address: minter.clone(),
         };
         instantiate(
             deps.as_mut(),
@@ -928,24 +961,21 @@ mod tests {
         ));
 
         // mint 1 token
+        let info = mock_info(minter.as_ref(), &coins(MIN_FEE, NATIVE_DENOM));
         let bank_msg = SubMsg::new(BankMsg::Send {
             to_address: MULTI_SIG.to_string(),
             amount: coins(MIN_FEE, NATIVE_DENOM.to_string()),
         });
         let mut rsp = Response::new()
-            .add_attribute("action", "transfer")
+            .add_attribute("action", "mint")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
-            .add_attribute("to", &minter);
+            .add_attribute("to", &minter)
+            .add_attribute("mint_fee", info.funds[0].to_string())
+            .add_attribute("payment_address", MULTI_SIG);
         rsp.messages = vec![bank_msg];
         assert_eq!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(minter.as_ref(), &coins(MIN_FEE, NATIVE_DENOM)),
-                mint_msg.clone(),
-            )
-            .unwrap(),
+            execute(deps.as_mut(), mock_env(), info, mint_msg.clone(),).unwrap(),
             rsp
         );
 
@@ -1018,7 +1048,7 @@ mod tests {
 
         let mut deps = mock_dependencies();
         let msg = InstantiateMsg {
-            royalty: minter.clone(),
+            royalty_address: minter.clone(),
         };
         instantiate(
             deps.as_mut(),
@@ -1057,28 +1087,25 @@ mod tests {
         ));
 
         // valid mint 2 different token
+        let info = mock_info(minter.as_ref(), &coins(payment, NATIVE_DENOM));
         let bank_msg = SubMsg::new(BankMsg::Send {
             to_address: MULTI_SIG.to_string(),
             amount: coins(payment, demon_string),
         });
         let mut rsp = Response::new()
-            .add_attribute("action", "transfer")
+            .add_attribute("action", "mint")
             .add_attribute("token_id", &token1)
             .add_attribute("amount", 1u64.to_string())
             .add_attribute("to", &minter)
-            .add_attribute("action", "transfer")
+            .add_attribute("action", "mint")
             .add_attribute("token_id", &token2)
             .add_attribute("amount", 3u64.to_string())
-            .add_attribute("to", &minter);
+            .add_attribute("to", &minter)
+            .add_attribute("mint_fee", info.funds[0].to_string())
+            .add_attribute("payment_address", MULTI_SIG);
         rsp.messages = vec![bank_msg];
         assert_eq!(
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(minter.as_ref(), &coins(payment, NATIVE_DENOM)),
-                mint_msg,
-            )
-            .unwrap(),
+            execute(deps.as_mut(), mock_env(), info, mint_msg,).unwrap(),
             rsp
         );
 

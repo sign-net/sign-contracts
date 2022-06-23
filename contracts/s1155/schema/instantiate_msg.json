@@ -3,10 +3,10 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "royalty"
+    "royalty_address"
   ],
   "properties": {
-    "royalty": {
+    "royalty_address": {
       "type": "string"
     }
   }

@@ -10,12 +10,12 @@ pub struct TransferEvent<'a> {
 
 pub trait Event {
     /// Append attributes to response
-    fn add_attributes(&self, response: &mut Response);
+    fn add_attributes(&self, response: &mut Response, action: &str);
 }
 
 impl<'a> Event for TransferEvent<'a> {
-    fn add_attributes(&self, rsp: &mut Response) {
-        rsp.attributes.push(attr("action", "transfer"));
+    fn add_attributes(&self, rsp: &mut Response, action: &str) {
+        rsp.attributes.push(attr("action", action.to_string()));
         rsp.attributes.push(attr("token_id", self.token_id));
         rsp.attributes.push(attr("amount", self.amount));
         if let Some(from) = self.from {

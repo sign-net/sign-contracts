@@ -9,7 +9,7 @@ pub type TokenUri = String;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub royalty: String,
+    pub royalty_address: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -182,11 +182,12 @@ impl From<QueryMsg> for Cw1155QueryMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ConfigResponse {
     pub minter: String,
-    pub royalty: String,
-    pub multi_sig: String,
-    pub factory: String,
-    pub min_mint_fee: Coin,
+    pub royalty_address: String,
+    pub factory_address: String,
+    pub multisig: String,
+    pub min_fee: Coin,
     pub royalty_fee: Coin,
+    pub royalty_share: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
