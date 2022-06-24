@@ -2,7 +2,7 @@
 use crate::msg::{CollectionInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{CollectionInfo, COLLECTION_INFO};
 use crate::ContractError;
-use cosmwasm_std::{entry_point, Addr, Coin, WasmMsg};
+use cosmwasm_std::{entry_point, Addr, Coin};
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
 use cw2::set_contract_version;
 use cw721::{ContractInfoResponse, Cw721ReceiveMsg};
@@ -11,7 +11,7 @@ use cw721_base::state::TokenInfo;
 use cw721_base::{ContractError as BaseError, Cw721Contract, MintMsg};
 use s1::{check_royalty_payment, OWNER_PERCENT, ROYALTY_FEE};
 use s2::{check_payment, MIN_FEE};
-use s_std::{FactoryExecuteMsg, Response, SubMsg, FACTORY, MULTI_SIG, NATIVE_DENOM};
+use s_std::{Response, SubMsg, MULTISIG, NATIVE_DENOM};
 use url::Url;
 
 // version info for migration info
@@ -32,19 +32,8 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Creation fee paid to multisig
-    let multisig = deps.api.addr_validate(MULTI_SIG)?;
-    let mut msgs = vec![check_payment(&info, MIN_FEE, multisig)?];
-
-    // Store creator address->s721 contract address to factory contract
-    deps.api.addr_validate(&msg.collection_info.creator)?;
-    let factory_msg = SubMsg::new(WasmMsg::Execute {
-        contract_addr: FACTORY.to_string(),
-        msg: to_binary(&FactoryExecuteMsg::AddS721 {
-            from: msg.clone().collection_info.creator,
-        })?,
-        funds: vec![],
-    });
-    msgs.push(factory_msg);
+    let multisig = deps.api.addr_validate(MULTISIG)?;
+    let msgs = vec![check_payment(&info, MIN_FEE, multisig)?];
 
     // cw721 instantiation
     let contract_info = ContractInfoResponse {
@@ -71,6 +60,7 @@ pub fn instantiate(
 
     deps.api
         .addr_validate(&msg.collection_info.royalty_address)?;
+    deps.api.addr_validate(&msg.collection_info.creator)?;
 
     let collection_info = CollectionInfo {
         creator: msg.collection_info.creator,
@@ -90,7 +80,7 @@ pub fn instantiate(
         .add_attribute("contract_name", CONTRACT_NAME)
         .add_attribute("contract_version", CONTRACT_VERSION)
         .add_attribute("creation_fee", info.funds[0].to_string())
-        .add_attribute("payment_address", MULTI_SIG))
+        .add_attribute("payment_address", MULTISIG))
 }
 
 /// To mitigate clippy::too_many_arguments warning
@@ -219,7 +209,7 @@ pub fn execute_mint(env: ExecuteEnv, msg: MintMsg<Empty>) -> Result<Response, Co
     }
 
     // Minting fee paid to multisig
-    let multisig = Addr::unchecked(MULTI_SIG);
+    let multisig = Addr::unchecked(MULTISIG);
     let msgs = vec![check_payment(&info, MIN_FEE, multisig)?];
 
     // create the token
@@ -244,7 +234,7 @@ pub fn execute_mint(env: ExecuteEnv, msg: MintMsg<Empty>) -> Result<Response, Co
         .add_attribute("owner", msg.owner)
         .add_attribute("token_id", msg.token_id)
         .add_attribute("mint_fee", info.funds[0].to_string())
-        .add_attribute("payment_address", MULTI_SIG);
+        .add_attribute("payment_address", MULTISIG);
     rsp.messages = msgs;
 
     Ok(rsp)
@@ -273,8 +263,7 @@ fn query_config(deps: Deps) -> StdResult<CollectionInfoResponse> {
         image,
         external_link,
         royalty_address,
-        factory_address: FACTORY.to_string(),
-        multisig: MULTI_SIG.to_string(),
+        multisig: MULTISIG.to_string(),
         min_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
         royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
         royalty_share: OWNER_PERCENT,
@@ -414,24 +403,17 @@ mod tests {
 
         // success
         let bank_msg = SubMsg::new(BankMsg::Send {
-            to_address: MULTI_SIG.to_string(),
+            to_address: MULTISIG.to_string(),
             amount: coins(MIN_FEE, NATIVE_DENOM.to_string()),
         });
-        let factory_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: FACTORY.to_string(),
-            msg: to_binary(&FactoryExecuteMsg::AddS721 {
-                from: creator.clone(),
-            })
-            .unwrap(),
-            funds: vec![],
-        });
+
         let mut rsp = Response::new()
             .add_attribute("action", "instantiate")
             .add_attribute("contract_name", CONTRACT_NAME)
             .add_attribute("contract_version", CONTRACT_VERSION)
             .add_attribute("creation_fee", info.funds[0].to_string())
-            .add_attribute("payment_address", MULTI_SIG);
-        rsp.messages = vec![bank_msg, factory_msg];
+            .add_attribute("payment_address", MULTISIG);
+        rsp.messages = vec![bank_msg];
         assert_eq!(
             instantiate(deps.as_mut(), mock_env(), info, msg).unwrap(),
             rsp
@@ -493,7 +475,7 @@ mod tests {
         // mint to user1
         let info = mock_info(&minter, &coins(MIN_FEE, NATIVE_DENOM));
         let bank_msg = SubMsg::new(BankMsg::Send {
-            to_address: MULTI_SIG.to_string(),
+            to_address: MULTISIG.to_string(),
             amount: coins(MIN_FEE, NATIVE_DENOM.to_string()),
         });
         let mut rsp = Response::new()
@@ -502,7 +484,7 @@ mod tests {
             .add_attribute("owner", user.clone())
             .add_attribute("token_id", token_id.clone())
             .add_attribute("mint_fee", info.funds[0].to_string())
-            .add_attribute("payment_address", MULTI_SIG);
+            .add_attribute("payment_address", MULTISIG);
         rsp.messages = vec![bank_msg];
         assert_eq!(
             execute(deps.as_mut(), mock_env(), info, mint_msg,).unwrap(),

@@ -211,7 +211,6 @@ pub struct CollectionInfoResponse {
     pub image: String,
     pub external_link: Option<String>,
     pub royalty_address: String,
-    pub factory_address: String,
     pub multisig: String,
     pub min_fee: Coin,
     pub royalty_fee: Coin,

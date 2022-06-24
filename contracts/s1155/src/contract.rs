@@ -5,7 +5,7 @@ use crate::msg::{
     BatchReceiveMsg, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, TokenUri,
 };
 use crate::state::ROYALTY;
-use cosmwasm_std::{attr, entry_point, to_binary, Addr, Binary, Coin, Deps, Uint128, WasmMsg};
+use cosmwasm_std::{attr, entry_point, to_binary, Addr, Binary, Coin, Deps, Uint128};
 use cosmwasm_std::{DepsMut, Env, MessageInfo, StdResult};
 use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, TokenId};
 use cw1155_base::contract::{execute as base_execute, query as base_query};
@@ -14,7 +14,7 @@ use cw1155_base::ContractError as BaseError;
 use cw2::set_contract_version;
 use s1::{check_royalty_payment, OWNER_PERCENT, ROYALTY_FEE};
 use s2::{check_payment, MIN_FEE};
-use s_std::{FactoryExecuteMsg, Response, SubMsg, FACTORY, MULTI_SIG, NATIVE_DENOM};
+use s_std::{Response, SubMsg, MULTISIG, NATIVE_DENOM};
 use url::Url;
 
 // Version info for migration info
@@ -32,20 +32,10 @@ pub fn instantiate(
     MINTER.save(deps.storage, &info.sender)?;
     ROYALTY.save(deps.storage, &deps.api.addr_validate(&msg.royalty_address)?)?;
 
-    // Store sender->s1155 contract address to factory contract
-    let factory_msg = WasmMsg::Execute {
-        contract_addr: FACTORY.to_string(),
-        msg: to_binary(&FactoryExecuteMsg::AddS1155 {
-            from: info.sender.to_string(),
-        })?,
-        funds: vec![],
-    };
-
     Ok(Response::default()
         .add_attribute("action", "instantiate")
         .add_attribute("contract_name", CONTRACT_NAME)
-        .add_attribute("contract_version", CONTRACT_VERSION)
-        .add_message(factory_msg))
+        .add_attribute("contract_version", CONTRACT_VERSION))
 }
 
 /// To mitigate clippy::too_many_arguments warning
@@ -235,7 +225,7 @@ pub fn execute_mint(
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
-    let multisig = Addr::unchecked(MULTI_SIG);
+    let multisig = Addr::unchecked(MULTISIG);
     let mut msgs = vec![check_payment(&info, MIN_FEE, multisig)?];
 
     let to_addr = deps.api.addr_validate(&to)?;
@@ -252,7 +242,7 @@ pub fn execute_mint(
     event.add_attributes(&mut rsp, "mint");
     rsp.attributes
         .push(attr("mint_fee", info.funds[0].to_string()));
-    rsp.attributes.push(attr("payment_address", MULTI_SIG));
+    rsp.attributes.push(attr("payment_address", MULTISIG));
 
     if let Some(msg) = msg {
         msgs.push(SubMsg::new(
@@ -285,7 +275,7 @@ pub fn execute_batch_mint(
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
-    let multisig = deps.api.addr_validate(MULTI_SIG)?;
+    let multisig = deps.api.addr_validate(MULTISIG)?;
     if info.sender != MINTER.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
     }
@@ -316,7 +306,7 @@ pub fn execute_batch_mint(
     }
     rsp.attributes
         .push(attr("mint_fee", info.funds[0].to_string()));
-    rsp.attributes.push(attr("payment_address", MULTI_SIG));
+    rsp.attributes.push(attr("payment_address", MULTISIG));
 
     if let Some(msg) = msg {
         msgs.push(SubMsg::new(
@@ -342,8 +332,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&ConfigResponse {
             minter: MINTER.load(deps.storage)?.to_string(),
             royalty_address: ROYALTY.load(deps.storage)?.to_string(),
-            factory_address: FACTORY.to_string(),
-            multisig: MULTI_SIG.to_string(),
+            multisig: MULTISIG.to_string(),
             min_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
             royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
             royalty_share: OWNER_PERCENT,
@@ -444,19 +433,11 @@ mod tests {
         let msg = InstantiateMsg {
             royalty_address: royalty.clone(),
         };
-        let factory_msg = WasmMsg::Execute {
-            contract_addr: FACTORY.to_string(),
-            msg: to_binary(&FactoryExecuteMsg::AddS1155 {
-                from: minter.sender.to_string(),
-            })
-            .unwrap(),
-            funds: vec![],
-        };
+
         let rsp = Response::new()
             .add_attribute("action", "instantiate")
             .add_attribute("contract_name", CONTRACT_NAME)
-            .add_attribute("contract_version", CONTRACT_VERSION)
-            .add_message(factory_msg);
+            .add_attribute("contract_version", CONTRACT_VERSION);
         assert_eq!(
             instantiate(deps.as_mut(), mock_env(), minter.clone(), msg).unwrap(),
             rsp
@@ -468,8 +449,7 @@ mod tests {
             to_binary(&ConfigResponse {
                 minter: minter.sender.to_string(),
                 royalty_address: royalty,
-                factory_address: FACTORY.to_string(),
-                multisig: MULTI_SIG.to_string(),
+                multisig: MULTISIG.to_string(),
                 min_fee: Coin::new(MIN_FEE, NATIVE_DENOM),
                 royalty_fee: Coin::new(ROYALTY_FEE, NATIVE_DENOM),
                 royalty_share: OWNER_PERCENT,
@@ -963,7 +943,7 @@ mod tests {
         // mint 1 token
         let info = mock_info(minter.as_ref(), &coins(MIN_FEE, NATIVE_DENOM));
         let bank_msg = SubMsg::new(BankMsg::Send {
-            to_address: MULTI_SIG.to_string(),
+            to_address: MULTISIG.to_string(),
             amount: coins(MIN_FEE, NATIVE_DENOM.to_string()),
         });
         let mut rsp = Response::new()
@@ -972,7 +952,7 @@ mod tests {
             .add_attribute("amount", 1u64.to_string())
             .add_attribute("to", &minter)
             .add_attribute("mint_fee", info.funds[0].to_string())
-            .add_attribute("payment_address", MULTI_SIG);
+            .add_attribute("payment_address", MULTISIG);
         rsp.messages = vec![bank_msg];
         assert_eq!(
             execute(deps.as_mut(), mock_env(), info, mint_msg.clone(),).unwrap(),
@@ -1089,7 +1069,7 @@ mod tests {
         // valid mint 2 different token
         let info = mock_info(minter.as_ref(), &coins(payment, NATIVE_DENOM));
         let bank_msg = SubMsg::new(BankMsg::Send {
-            to_address: MULTI_SIG.to_string(),
+            to_address: MULTISIG.to_string(),
             amount: coins(payment, demon_string),
         });
         let mut rsp = Response::new()
@@ -1102,7 +1082,7 @@ mod tests {
             .add_attribute("amount", 3u64.to_string())
             .add_attribute("to", &minter)
             .add_attribute("mint_fee", info.funds[0].to_string())
-            .add_attribute("payment_address", MULTI_SIG);
+            .add_attribute("payment_address", MULTISIG);
         rsp.messages = vec![bank_msg];
         assert_eq!(
             execute(deps.as_mut(), mock_env(), info, mint_msg,).unwrap(),

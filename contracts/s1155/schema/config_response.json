@@ -3,7 +3,6 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "factory_address",
     "min_fee",
     "minter",
     "multisig",
@@ -12,9 +11,6 @@
     "royalty_share"
   ],
   "properties": {
-    "factory_address": {
-      "type": "string"
-    },
     "min_fee": {
       "$ref": "#/definitions/Coin"
     },

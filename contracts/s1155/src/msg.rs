@@ -183,7 +183,6 @@ impl From<QueryMsg> for Cw1155QueryMsg {
 pub struct ConfigResponse {
     pub minter: String,
     pub royalty_address: String,
-    pub factory_address: String,
     pub multisig: String,
     pub min_fee: Coin,
     pub royalty_fee: Coin,

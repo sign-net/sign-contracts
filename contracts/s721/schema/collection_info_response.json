@@ -5,7 +5,6 @@
   "required": [
     "creator",
     "description",
-    "factory_address",
     "image",
     "min_fee",
     "multisig",
@@ -25,9 +24,6 @@
         "string",
         "null"
       ]
-    },
-    "factory_address": {
-      "type": "string"
     },
     "image": {
       "type": "string"
