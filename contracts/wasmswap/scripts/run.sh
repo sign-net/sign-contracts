@@ -1,9 +1,9 @@
-docker kill cosmwasm
-docker container rm cosmwasm
-docker run --detach --name cosmwasm -p 1317:1317 -p 26656:26656 -p 26657:26657 ghcr.io/sign-net/core:latest
+docker kill node
+docker container rm node
+docker run --detach --name node -p 1317:1317 -p 26656:26656 -p 26657:26657 ghcr.io/sign-net/core:latest
 sleep 5
 
-BINARY='docker exec -i cosmwasm signd'
+BINARY='docker exec -i node signd'
 DENOM='usign'
 VALIDATOR=$($(echo $BINARY) keys show validator -a)
 USER1=$($(echo $BINARY) keys show user1 -a)
@@ -11,8 +11,8 @@ USER2=$($(echo $BINARY) keys show user2 -a)
 USER3=$($(echo $BINARY) keys show user3 -a)
 USER4=$($(echo $BINARY) keys show user4 -a)
 
-docker cp cw20_base.wasm cosmwasm:/app/cw20_base.wasm
-docker cp wasmswap.wasm cosmwasm:/app/wasmswap.wasm
+docker cp cw20_base.wasm node:/app/cw20_base.wasm
+docker cp wasmswap.wasm node:/app/wasmswap.wasm
 
 echo "\n\nUploading cw20_base..."
 $(echo $BINARY) tx wasm store cw20_base.wasm --gas=auto --gas-adjustment=1.15 --from user1 -y
